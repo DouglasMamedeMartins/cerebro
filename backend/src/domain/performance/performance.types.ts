@@ -7,6 +7,13 @@ export type ReliabilityLevel =
 
 export type MasteryStatus = "learning" | "weak" | "developing" | "consolidated";
 
+export type PerformanceTrend =
+  | "strong_improvement"
+  | "improvement"
+  | "stable"
+  | "decline"
+  | "strong_decline";
+
 export interface TopicPerformance {
   topicId: string;
 
@@ -16,6 +23,8 @@ export interface TopicPerformance {
 
   accuracy: number;
   recentAccuracy: number;
+
+  trend: PerformanceTrend;
 
   averageResponseTimeSeconds: number | null;
   averageConfidence: number | null;
