@@ -1,5 +1,14 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import { sql } from "drizzle-orm";
+import { db } from "./db/index.js";
+import { candidateRoutes } from "./routes/candidate.routes.js";
+import { editalRoutes } from "./routes/edital.routes.js";
+import { subjectRoutes } from "./routes/subject.routes.js";
+import { topicRoutes } from "./routes/topic.routes.js";
+import { questionRoutes } from "./routes/question.routes.js";
+import { questionAttemptRoutes } from "./routes/question-attempt.routes.js";
+import { performanceRoutes } from "./routes/performance.routes.js";
 
 const app = Fastify({
   logger: true,
@@ -9,10 +18,22 @@ await app.register(cors, {
   origin: true,
 });
 
+await app.register(candidateRoutes);
+await app.register(editalRoutes);
+await app.register(subjectRoutes);
+await app.register(topicRoutes);
+await app.register(questionRoutes);
+await app.register(questionAttemptRoutes);
+await app.register(performanceRoutes);
+
 app.get("/health", async () => {
+  const result = await db.execute(sql`SELECT NOW()`);
+
   return {
     status: "ok",
     service: "PMDF CÉREBRO API",
+    database: "connected",
+    time: result[0],
   };
 });
 
