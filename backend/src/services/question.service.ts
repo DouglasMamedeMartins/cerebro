@@ -1,6 +1,10 @@
+import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { questions } from "../db/schema.js";
-import type { CreateQuestionInput } from "../domain/question/question.schema.js";
+import type {
+  CreateQuestionInput,
+  UpdateQuestionInput,
+} from "../domain/question/question.schema.js";
 
 export async function createQuestion(data: CreateQuestionInput) {
   const [question] = await db
@@ -15,6 +19,23 @@ export async function createQuestion(data: CreateQuestionInput) {
       isActive: data.isActive,
     })
     .returning();
+
+  return question;
+}
+
+export async function updateQuestion(
+  questionId: string,
+  data: UpdateQuestionInput,
+) {
+  const [question] = await db
+    .update(questions)
+    .set(data)
+    .where(eq(questions.id, questionId))
+    .returning();
+
+  if (!question) {
+    throw new Error("QUESTION_NOT_FOUND");
+  }
 
   return question;
 }

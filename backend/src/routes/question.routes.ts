@@ -1,6 +1,13 @@
 import type { FastifyInstance } from "fastify";
-import { createQuestionSchema } from "../domain/question/question.schema.js";
-import { createQuestion } from "../services/question.service.js";
+import {
+  createQuestionSchema,
+  updateQuestionSchema,
+} from "../domain/question/question.schema.js";
+import {
+  createQuestion,
+  updateQuestion,
+} from "../services/question.service.js";
+import z from "zod";
 
 export async function questionRoutes(app: FastifyInstance) {
   app.post("/api/questions", async (request, reply) => {
@@ -22,6 +29,51 @@ export async function questionRoutes(app: FastifyInstance) {
 
       return reply.status(500).send({
         error: "Erro interno ao criar questão",
+      });
+    }
+  });
+
+  app.patch("/api/questions/:questionId", async (request, reply) => {
+    const paramsSchema = z.object({
+      questionId: z.uuid("ID da questão inválido"),
+    });
+
+    const paramsResult = paramsSchema.safeParse(request.params);
+
+    if (!paramsResult.success) {
+      return reply.status(400).send({
+        error: "Parâmetros inválidos",
+        details: paramsResult.error.flatten(),
+      });
+    }
+
+    const result = updateQuestionSchema.safeParse(request.body);
+
+    if (!result.success) {
+      return reply.status(400).send({
+        error: "Dados inválidos",
+        details: result.error.flatten(),
+      });
+    }
+
+    try {
+      const question = await updateQuestion(
+        paramsResult.data.questionId,
+        result.data,
+      );
+
+      return reply.status(200).send(question);
+    } catch (error) {
+      if (error instanceof Error && error.message === "QUESTION_NOT_FOUND") {
+        return reply.status(404).send({
+          error: "Questão não encontrada",
+        });
+      }
+
+      app.log.error(error);
+
+      return reply.status(500).send({
+        error: "Erro interno ao atualizar questão",
       });
     }
   });
