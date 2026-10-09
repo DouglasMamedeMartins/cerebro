@@ -21,7 +21,7 @@ export async function getTopicState(
   ]);
 
   const reviewPriority =
-    coverage.totalMinutes === 0
+    performance.attempts === 0 || coverage.totalMinutes === 0
       ? {
           status: "not_due" as const,
           factor: 0,
