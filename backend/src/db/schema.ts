@@ -6,6 +6,7 @@ import {
   timestamp,
   integer,
   boolean,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const candidates = pgTable("candidates", {
@@ -122,6 +123,18 @@ export const questions = pgTable("questions", {
     .references(() => topics.id),
 
   statement: text("statement").notNull(),
+
+  options: jsonb("options").$type<{
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+    E: string;
+  }>(),
+
+  correctOption: varchar("correct_option", {
+    length: 1,
+  }),
 
   explanation: text("explanation"),
 

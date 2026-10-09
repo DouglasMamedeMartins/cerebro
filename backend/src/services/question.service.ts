@@ -12,6 +12,8 @@ export async function createQuestion(data: CreateQuestionInput) {
     .values({
       topicId: data.topicId,
       statement: data.statement,
+      options: data.options,
+      correctOption: data.correctOption,
       explanation: data.explanation,
       difficulty: data.difficulty,
       source: data.source,
@@ -19,10 +21,8 @@ export async function createQuestion(data: CreateQuestionInput) {
       isActive: data.isActive,
     })
     .returning();
-
   return question;
 }
-
 export async function updateQuestion(
   questionId: string,
   data: UpdateQuestionInput,
@@ -42,7 +42,18 @@ export async function updateQuestion(
 
 export async function listQuestions(topicId?: string) {
   const result = await db
-    .select()
+    .select({
+      id: questions.id,
+      topicId: questions.topicId,
+      statement: questions.statement,
+      options: questions.options,
+      explanation: questions.explanation,
+      difficulty: questions.difficulty,
+      source: questions.source,
+      year: questions.year,
+      isActive: questions.isActive,
+      createdAt: questions.createdAt,
+    })
     .from(questions)
     .where(topicId ? eq(questions.topicId, topicId) : undefined);
 

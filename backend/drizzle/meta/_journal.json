@@ -15,6 +15,13 @@
       "when": 1791489346341,
       "tag": "0001_mysterious_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791552945632,
+      "tag": "0002_tiresome_network",
+      "breakpoints": true
     }
   ]
 }

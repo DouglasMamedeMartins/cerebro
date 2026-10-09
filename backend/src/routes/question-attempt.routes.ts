@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
+
 import { createQuestionAttemptSchema } from "../domain/question-attempt/question-attempt.schema.js";
+
 import { createQuestionAttempt } from "../services/question-attempt.service.js";
 
 export async function questionAttemptRoutes(app: FastifyInstance) {
@@ -28,6 +30,13 @@ export async function questionAttemptRoutes(app: FastifyInstance) {
         if (error.message === "QUESTION_NOT_FOUND") {
           return reply.status(404).send({
             error: "Questão não encontrada",
+          });
+        }
+
+        if (error.message === "QUESTION_ANSWER_KEY_MISSING") {
+          return reply.status(409).send({
+            error: "Esta questão ainda não possui gabarito cadastrado",
+            code: "QUESTION_ANSWER_KEY_MISSING",
           });
         }
       }

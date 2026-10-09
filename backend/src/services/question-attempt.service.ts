@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
+
 import { db } from "../db/index.js";
 import { candidates, questions, questionAttempts } from "../db/schema.js";
+
 import type { CreateQuestionAttemptInput } from "../domain/question-attempt/question-attempt.schema.js";
 
 export async function createQuestionAttempt(data: CreateQuestionAttemptInput) {
@@ -15,7 +17,10 @@ export async function createQuestionAttempt(data: CreateQuestionAttemptInput) {
   }
 
   const [question] = await db
-    .select({ id: questions.id })
+    .select({
+      id: questions.id,
+      correctOption: questions.correctOption,
+    })
     .from(questions)
     .where(eq(questions.id, data.questionId))
     .limit(1);
@@ -24,12 +29,18 @@ export async function createQuestionAttempt(data: CreateQuestionAttemptInput) {
     throw new Error("QUESTION_NOT_FOUND");
   }
 
+  if (!question.correctOption) {
+    throw new Error("QUESTION_ANSWER_KEY_MISSING");
+  }
+
+  const isCorrect = data.selectedOption === question.correctOption;
+
   const [attempt] = await db
     .insert(questionAttempts)
     .values({
       candidateId: data.candidateId,
       questionId: data.questionId,
-      isCorrect: data.isCorrect,
+      isCorrect,
       responseTimeSeconds: data.responseTimeSeconds,
       confidence: data.confidence,
       answeredAt: data.answeredAt ? new Date(data.answeredAt) : new Date(),

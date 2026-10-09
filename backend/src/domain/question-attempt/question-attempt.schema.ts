@@ -5,7 +5,10 @@ export const createQuestionAttemptSchema = z.object({
 
   questionId: z.uuid("ID da questão inválido"),
 
-  isCorrect: z.boolean(),
+  selectedOption: z.enum(
+    ["A", "B", "C", "D", "E"],
+    "Alternativa selecionada inválida",
+  ),
 
   responseTimeSeconds: z
     .number()
