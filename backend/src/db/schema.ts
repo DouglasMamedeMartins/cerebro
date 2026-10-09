@@ -22,6 +22,8 @@ export const candidates = pgTable("candidates", {
     .notNull()
     .unique(),
 
+  isActive: boolean("is_active").default(true).notNull(),
+
   editalVersionId: uuid("edital_version_id").references(
     () => editalVersions.id,
   ),
