@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { candidates } from "../db/schema.js";
 import type {
@@ -20,7 +20,11 @@ export async function createCandidate(data: CreateCandidateInput) {
 }
 
 export async function getCandidates() {
-  return await db.select().from(candidates).orderBy(candidates.createdAt);
+  return await db
+    .select()
+    .from(candidates)
+    .where(eq(candidates.isActive, true))
+    .orderBy(candidates.createdAt);
 }
 
 export async function getCandidateById(candidateId: string) {
@@ -30,7 +34,11 @@ export async function getCandidateById(candidateId: string) {
     .where(eq(candidates.id, candidateId))
     .limit(1);
 
-  return candidate ?? null;
+  if (!candidate || !candidate.isActive) {
+    return null;
+  }
+
+  return candidate;
 }
 
 export async function updateCandidate(
@@ -43,7 +51,7 @@ export async function updateCandidate(
       ...data,
       updatedAt: new Date(),
     })
-    .where(eq(candidates.id, candidateId))
+    .where(and(eq(candidates.id, candidateId), eq(candidates.isActive, true)))
     .returning();
 
   return candidate ?? null;

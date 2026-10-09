@@ -5,6 +5,7 @@ import {
 } from "../domain/candidate/candidate.schema.js";
 import {
   createCandidate,
+  deactivateCandidate,
   getCandidateById,
   getCandidates,
   updateCandidate,
@@ -178,6 +179,41 @@ export async function candidateRoutes(app: FastifyInstance) {
 
       return reply.status(500).send({
         error: "Erro interno ao atualizar candidato",
+      });
+    }
+  });
+
+  app.delete("/api/candidates/:candidateId", async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        candidateId,
+      )
+    ) {
+      return reply.status(400).send({
+        error: "ID do candidato inválido",
+      });
+    }
+
+    try {
+      const candidate = await deactivateCandidate(candidateId);
+
+      if (!candidate) {
+        return reply.status(404).send({
+          error: "Candidato não encontrado",
+        });
+      }
+
+      return reply.status(200).send({
+        message: "Candidato desativado com sucesso",
+        candidate,
+      });
+    } catch (error) {
+      app.log.error({ err: error }, "Erro ao desativar candidato");
+
+      return reply.status(500).send({
+        error: "Erro interno ao desativar candidato",
       });
     }
   });
