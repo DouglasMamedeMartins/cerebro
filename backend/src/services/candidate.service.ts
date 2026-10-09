@@ -8,6 +8,7 @@ export async function createCandidate(data: CreateCandidateInput) {
     .values({
       name: data.name,
       email: data.email,
+      editalVersionId: data.editalVersionId,
     })
     .returning();
 
