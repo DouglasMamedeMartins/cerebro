@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { questions } from "../db/schema.js";
 import type {
@@ -41,13 +41,16 @@ export async function updateQuestion(
 }
 
 export async function listQuestions(topicId?: string) {
+  const conditions = topicId
+    ? and(eq(questions.isActive, true), eq(questions.topicId, topicId))
+    : eq(questions.isActive, true);
+
   const result = await db
     .select({
       id: questions.id,
       topicId: questions.topicId,
       statement: questions.statement,
       options: questions.options,
-      explanation: questions.explanation,
       difficulty: questions.difficulty,
       source: questions.source,
       year: questions.year,
@@ -55,7 +58,7 @@ export async function listQuestions(topicId?: string) {
       createdAt: questions.createdAt,
     })
     .from(questions)
-    .where(topicId ? eq(questions.topicId, topicId) : undefined);
+    .where(conditions);
 
   return result;
 }

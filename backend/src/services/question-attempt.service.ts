@@ -20,6 +20,7 @@ export async function createQuestionAttempt(data: CreateQuestionAttemptInput) {
     .select({
       id: questions.id,
       correctOption: questions.correctOption,
+      explanation: questions.explanation,
     })
     .from(questions)
     .where(eq(questions.id, data.questionId))
@@ -47,5 +48,8 @@ export async function createQuestionAttempt(data: CreateQuestionAttemptInput) {
     })
     .returning();
 
-  return attempt;
+  return {
+    ...attempt,
+    explanation: question.explanation,
+  };
 }
