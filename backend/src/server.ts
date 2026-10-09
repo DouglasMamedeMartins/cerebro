@@ -9,6 +9,12 @@ import { topicRoutes } from "./routes/topic.routes.js";
 import { questionRoutes } from "./routes/question.routes.js";
 import { questionAttemptRoutes } from "./routes/question-attempt.routes.js";
 import { performanceRoutes } from "./routes/performance.routes.js";
+import { priorityRoutes } from "./routes/priority.routes.js";
+import { reviewRoutes } from "./routes/review.routes.js";
+import { studyRoutes } from "./routes/study.routes.js";
+import { bestActionRoutes } from "./routes/best-action.routes.js";
+import { candidateTopicRoutes } from "./routes/candidate-topic.routes.js";
+import { candidateBestActionRoutes } from "./routes/candidate-best-action.routes.js";
 
 const app = Fastify({
   logger: true,
@@ -25,6 +31,12 @@ await app.register(topicRoutes);
 await app.register(questionRoutes);
 await app.register(questionAttemptRoutes);
 await app.register(performanceRoutes);
+await app.register(priorityRoutes);
+await app.register(reviewRoutes);
+await app.register(studyRoutes);
+await app.register(bestActionRoutes);
+await app.register(candidateTopicRoutes);
+await app.register(candidateBestActionRoutes);
 
 app.get("/health", async () => {
   const result = await db.execute(sql`SELECT NOW()`);

@@ -5,6 +5,7 @@ import {
 } from "../domain/question/question.schema.js";
 import {
   createQuestion,
+  listQuestions,
   updateQuestion,
 } from "../services/question.service.js";
 import z from "zod";
@@ -74,6 +75,36 @@ export async function questionRoutes(app: FastifyInstance) {
 
       return reply.status(500).send({
         error: "Erro interno ao atualizar questão",
+      });
+    }
+  });
+
+  app.get("/api/questions", async (request, reply) => {
+    const querySchema = z.object({
+      topicId: z.uuid("ID do tópico inválido").optional(),
+    });
+
+    const result = querySchema.safeParse(request.query);
+
+    if (!result.success) {
+      return reply.status(400).send({
+        error: "Parâmetros inválidos",
+        details: result.error.flatten(),
+      });
+    }
+
+    try {
+      const questions = await listQuestions(result.data.topicId);
+
+      return reply.status(200).send({
+        count: questions.length,
+        questions,
+      });
+    } catch (error) {
+      app.log.error(error);
+
+      return reply.status(500).send({
+        error: "Erro interno ao listar questões",
       });
     }
   });

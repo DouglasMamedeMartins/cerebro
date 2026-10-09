@@ -39,3 +39,12 @@ export async function updateQuestion(
 
   return question;
 }
+
+export async function listQuestions(topicId?: string) {
+  const result = await db
+    .select()
+    .from(questions)
+    .where(topicId ? eq(questions.topicId, topicId) : undefined);
+
+  return result;
+}

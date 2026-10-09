@@ -1,28 +1,38 @@
 import type { FastifyInstance } from "fastify";
-import { createTopicSchema } from "../domain/topic/topic.schema.js";
-import { createTopic } from "../services/topic.service.js";
+import { z } from "zod";
+
+import { getTopicState } from "../services/topic-state.service.js";
 
 export async function topicRoutes(app: FastifyInstance) {
-  app.post("/api/topics", async (request, reply) => {
-    const result = createTopicSchema.safeParse(request.body);
+  app.get("/api/topics/:topicId/state", async (request, reply) => {
+    const paramsSchema = z.object({
+      topicId: z.uuid(),
+    });
 
-    if (!result.success) {
+    const querySchema = z.object({
+      candidateId: z.uuid(),
+      asOf: z.iso.datetime().optional(),
+    });
+
+    const paramsResult = paramsSchema.safeParse(request.params);
+    const queryResult = querySchema.safeParse(request.query);
+
+    if (!paramsResult.success || !queryResult.success) {
       return reply.status(400).send({
-        error: "Dados inválidos",
-        details: result.error.flatten(),
+        error: "INVALID_INPUT",
+        details: {
+          params: paramsResult.success ? null : paramsResult.error.flatten(),
+          query: queryResult.success ? null : queryResult.error.flatten(),
+        },
       });
     }
 
-    try {
-      const topic = await createTopic(result.data);
+    const state = await getTopicState(
+      queryResult.data.candidateId,
+      paramsResult.data.topicId,
+      queryResult.data.asOf ? new Date(queryResult.data.asOf) : new Date(),
+    );
 
-      return reply.status(201).send(topic);
-    } catch (error) {
-      app.log.error(error);
-
-      return reply.status(500).send({
-        error: "Erro interno ao criar tópico",
-      });
-    }
+    return reply.send(state);
   });
 }

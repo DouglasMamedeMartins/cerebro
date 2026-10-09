@@ -21,6 +21,10 @@ export const candidates = pgTable("candidates", {
     .notNull()
     .unique(),
 
+  editalVersionId: uuid("edital_version_id").references(
+    () => editalVersions.id,
+  ),
+
   createdAt: timestamp("created_at", {
     withTimezone: true,
   })
@@ -156,6 +160,60 @@ export const questionAttempts = pgTable("question_attempts", {
   confidence: integer("confidence"),
 
   answeredAt: timestamp("answered_at", {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
+
+export const topicReviews = pgTable("topic_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  candidateId: uuid("candidate_id")
+    .notNull()
+    .references(() => candidates.id),
+
+  topicId: uuid("topic_id")
+    .notNull()
+    .references(() => topics.id),
+
+  reviewedAt: timestamp("reviewed_at", {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+
+  masteryStatus: varchar("mastery_status", {
+    length: 30,
+  }),
+
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
+
+export const studySessions = pgTable("study_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  candidateId: uuid("candidate_id")
+    .notNull()
+    .references(() => candidates.id),
+
+  topicId: uuid("topic_id")
+    .notNull()
+    .references(() => topics.id),
+
+  durationMinutes: integer("duration_minutes").notNull(),
+
+  studiedAt: timestamp("studied_at", {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+
+  createdAt: timestamp("created_at", {
     withTimezone: true,
   })
     .defaultNow()
