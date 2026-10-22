@@ -1,21 +1,29 @@
-import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 
-import { db } from "../db/index.js";
-import { candidates, studySessions } from "../db/schema.js";
-import { getTopicCoverage } from "../services/coverage.service.js";
+import {
+  createStudySessionSchema,
+  type CreateStudySessionInput,
+} from "../domain/study-session/study-session.schema.js";
 
-export async function studyRoutes(app: FastifyInstance) {
+export type StudyRouteDependencies = {
+  createStudySession: (data: CreateStudySessionInput) => Promise<unknown>;
+  getStudyCandidate: (
+    candidateId: string,
+  ) => Promise<{ id: string; isActive: boolean } | undefined>;
+  getTopicCoverage: (
+    candidateId: string,
+    topicId: string,
+    now?: Date,
+  ) => Promise<unknown>;
+};
+
+export const studyRoutes: FastifyPluginAsync<StudyRouteDependencies> = async (
+  app,
+  { createStudySession, getStudyCandidate, getTopicCoverage },
+) => {
   app.post("/api/study-sessions", async (request, reply) => {
-    const schema = z.object({
-      candidateId: z.uuid(),
-      topicId: z.uuid(),
-      durationMinutes: z.number().int().positive(),
-      studiedAt: z.iso.datetime().optional(),
-    });
-
-    const result = schema.safeParse(request.body);
+    const result = createStudySessionSchema.safeParse(request.body);
 
     if (!result.success) {
       return reply.status(400).send({
@@ -24,38 +32,21 @@ export async function studyRoutes(app: FastifyInstance) {
       });
     }
 
-    const [candidate] = await db
-      .select({
-        id: candidates.id,
-        isActive: candidates.isActive,
-      })
-      .from(candidates)
-      .where(eq(candidates.id, result.data.candidateId))
-      .limit(1);
+    let session: unknown;
 
-    if (!candidate) {
-      return reply.status(404).send({
-        error: "CANDIDATE_NOT_FOUND",
-      });
+    try {
+      session = await createStudySession(result.data);
+    } catch (error) {
+      if (error instanceof Error && error.message === "CANDIDATE_NOT_FOUND") {
+        return reply.status(404).send({ error: "CANDIDATE_NOT_FOUND" });
+      }
+
+      if (error instanceof Error && error.message === "CANDIDATE_INACTIVE") {
+        return reply.status(403).send({ error: "CANDIDATE_INACTIVE" });
+      }
+
+      throw error;
     }
-
-    if (!candidate.isActive) {
-      return reply.status(403).send({
-        error: "CANDIDATE_INACTIVE",
-      });
-    }
-
-    const [session] = await db
-      .insert(studySessions)
-      .values({
-        candidateId: result.data.candidateId,
-        topicId: result.data.topicId,
-        durationMinutes: result.data.durationMinutes,
-        studiedAt: result.data.studiedAt
-          ? new Date(result.data.studiedAt)
-          : new Date(),
-      })
-      .returning();
 
     return reply.status(201).send(session);
   });
@@ -85,14 +76,7 @@ export async function studyRoutes(app: FastifyInstance) {
         });
       }
 
-      const [candidate] = await db
-        .select({
-          id: candidates.id,
-          isActive: candidates.isActive,
-        })
-        .from(candidates)
-        .where(eq(candidates.id, paramsResult.data.candidateId))
-        .limit(1);
+      const candidate = await getStudyCandidate(paramsResult.data.candidateId);
 
       if (!candidate) {
         return reply.status(404).send({
@@ -115,4 +99,4 @@ export async function studyRoutes(app: FastifyInstance) {
       return reply.send(coverage);
     },
   );
-}
+};

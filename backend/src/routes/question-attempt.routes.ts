@@ -1,10 +1,21 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 
-import { createQuestionAttemptSchema } from "../domain/question-attempt/question-attempt.schema.js";
+import {
+  createQuestionAttemptSchema,
+  type CreateQuestionAttemptInput,
+} from "../domain/question-attempt/question-attempt.schema.js";
 
-import { createQuestionAttempt } from "../services/question-attempt.service.js";
+export type CreateQuestionAttempt = (
+  data: CreateQuestionAttemptInput,
+) => Promise<unknown>;
 
-export async function questionAttemptRoutes(app: FastifyInstance) {
+type QuestionAttemptRouteOptions = {
+  createQuestionAttempt: CreateQuestionAttempt;
+};
+
+export const questionAttemptRoutes: FastifyPluginAsync<
+  QuestionAttemptRouteOptions
+> = async (app, { createQuestionAttempt }) => {
   app.post("/api/question-attempts", async (request, reply) => {
     const result = createQuestionAttemptSchema.safeParse(request.body);
 
@@ -54,4 +65,4 @@ export async function questionAttemptRoutes(app: FastifyInstance) {
       });
     }
   });
-}
+};

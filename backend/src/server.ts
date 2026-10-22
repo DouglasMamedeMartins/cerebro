@@ -2,6 +2,13 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { sql } from "drizzle-orm";
 import { db } from "./db/index.js";
+import { createQuestionAttempt } from "./services/question-attempt.service.js";
+import { getTopicCoverage } from "./services/coverage.service.js";
+import { createTopicReview } from "./services/review.service.js";
+import {
+  createStudySession,
+  getStudyCandidate,
+} from "./services/study-session.service.js";
 import { candidateRoutes } from "./routes/candidate.routes.js";
 import { editalRoutes } from "./routes/edital.routes.js";
 import { subjectRoutes } from "./routes/subject.routes.js";
@@ -11,6 +18,7 @@ import { questionAttemptRoutes } from "./routes/question-attempt.routes.js";
 import { performanceRoutes } from "./routes/performance.routes.js";
 import { priorityRoutes } from "./routes/priority.routes.js";
 import { reviewRoutes } from "./routes/review.routes.js";
+import { reviewCreationRoutes } from "./routes/review-create.routes.js";
 import { studyRoutes } from "./routes/study.routes.js";
 import { bestActionRoutes } from "./routes/best-action.routes.js";
 import { candidateTopicRoutes } from "./routes/candidate-topic.routes.js";
@@ -29,11 +37,16 @@ await app.register(editalRoutes);
 await app.register(subjectRoutes);
 await app.register(topicRoutes);
 await app.register(questionRoutes);
-await app.register(questionAttemptRoutes);
+await app.register(questionAttemptRoutes, { createQuestionAttempt });
 await app.register(performanceRoutes);
 await app.register(priorityRoutes);
 await app.register(reviewRoutes);
-await app.register(studyRoutes);
+await app.register(reviewCreationRoutes, { createTopicReview });
+await app.register(studyRoutes, {
+  createStudySession,
+  getStudyCandidate,
+  getTopicCoverage,
+});
 await app.register(bestActionRoutes);
 await app.register(candidateTopicRoutes);
 await app.register(candidateBestActionRoutes);
