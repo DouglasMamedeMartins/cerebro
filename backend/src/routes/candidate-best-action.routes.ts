@@ -1,12 +1,25 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 
-import {
-  getCandidateBestAction,
-  getCandidateBestActionTopics,
+import type {
+  CandidateBestAction,
+  CandidateBestActionTopic,
 } from "../services/best-action-candidate.service.js";
 
-export async function candidateBestActionRoutes(app: FastifyInstance) {
+export type CandidateBestActionRouteDependencies = {
+  getCandidateBestAction: (
+    candidateId: string,
+    asOf?: Date,
+  ) => Promise<CandidateBestAction | null>;
+  getCandidateBestActionTopics: (
+    candidateId: string,
+    asOf?: Date,
+  ) => Promise<CandidateBestActionTopic[]>;
+};
+
+export const candidateBestActionRoutes: FastifyPluginAsync<
+  CandidateBestActionRouteDependencies
+> = async (app, { getCandidateBestAction, getCandidateBestActionTopics }) => {
   /*
    * Ranking de todos os tópicos
    */
@@ -139,4 +152,4 @@ export async function candidateBestActionRoutes(app: FastifyInstance) {
       }
     },
   );
-}
+};

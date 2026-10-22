@@ -1,15 +1,30 @@
-import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { db } from "../db/index.js";
-import { candidates } from "../db/schema.js";
-import { getTopicPerformance } from "../services/performance.service.js";
+import type { TopicPerformance } from "../domain/performance/performance.types.js";
+import type { candidates } from "../db/schema.js";
+
+type PerformanceCandidate = Pick<
+  typeof candidates.$inferSelect,
+  "id" | "isActive"
+>;
+
+export type PerformanceRouteDependencies = {
+  getCandidateStatus: (
+    candidateId: string,
+  ) => Promise<PerformanceCandidate | undefined>;
+  getTopicPerformance: (
+    topicId: string,
+    candidateId: string,
+  ) => Promise<TopicPerformance>;
+};
 
 const performanceQuerySchema = z.object({
   candidateId: z.uuid("ID do candidato inválido"),
 });
 
-export async function performanceRoutes(app: FastifyInstance) {
+export const performanceRoutes: FastifyPluginAsync<
+  PerformanceRouteDependencies
+> = async (app, { getCandidateStatus, getTopicPerformance }) => {
   app.get("/api/performance/topics/:topicId", async (request, reply) => {
     const paramsSchema = z.object({
       topicId: z.uuid("ID do tópico inválido"),
@@ -34,14 +49,7 @@ export async function performanceRoutes(app: FastifyInstance) {
     }
 
     try {
-      const [candidate] = await db
-        .select({
-          id: candidates.id,
-          isActive: candidates.isActive,
-        })
-        .from(candidates)
-        .where(eq(candidates.id, queryResult.data.candidateId))
-        .limit(1);
+      const candidate = await getCandidateStatus(queryResult.data.candidateId);
 
       if (!candidate) {
         return reply.status(404).send({
@@ -69,4 +77,4 @@ export async function performanceRoutes(app: FastifyInstance) {
       });
     }
   });
-}
+};

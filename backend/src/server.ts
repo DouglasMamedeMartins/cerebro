@@ -1,10 +1,16 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "./db/index.js";
+import { candidates } from "./db/schema.js";
 import { createQuestionAttempt } from "./services/question-attempt.service.js";
 import { getTopicCoverage } from "./services/coverage.service.js";
 import { createTopicReview } from "./services/review.service.js";
+import { getTopicPerformance } from "./services/performance.service.js";
+import {
+  getCandidateBestAction,
+  getCandidateBestActionTopics,
+} from "./services/best-action-candidate.service.js";
 import {
   createStudySession,
   getStudyCandidate,
@@ -28,6 +34,19 @@ const app = Fastify({
   logger: true,
 });
 
+async function getPerformanceCandidateStatus(candidateId: string) {
+  const [candidate] = await db
+    .select({
+      id: candidates.id,
+      isActive: candidates.isActive,
+    })
+    .from(candidates)
+    .where(eq(candidates.id, candidateId))
+    .limit(1);
+
+  return candidate;
+}
+
 await app.register(cors, {
   origin: true,
 });
@@ -38,7 +57,10 @@ await app.register(subjectRoutes);
 await app.register(topicRoutes);
 await app.register(questionRoutes);
 await app.register(questionAttemptRoutes, { createQuestionAttempt });
-await app.register(performanceRoutes);
+await app.register(performanceRoutes, {
+  getCandidateStatus: getPerformanceCandidateStatus,
+  getTopicPerformance,
+});
 await app.register(priorityRoutes);
 await app.register(reviewRoutes);
 await app.register(reviewCreationRoutes, { createTopicReview });
@@ -49,7 +71,10 @@ await app.register(studyRoutes, {
 });
 await app.register(bestActionRoutes);
 await app.register(candidateTopicRoutes);
-await app.register(candidateBestActionRoutes);
+await app.register(candidateBestActionRoutes, {
+  getCandidateBestAction,
+  getCandidateBestActionTopics,
+});
 
 app.get("/health", async () => {
   const result = await db.execute(sql`SELECT NOW()`);
