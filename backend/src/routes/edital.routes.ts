@@ -1,9 +1,20 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import { createEditalSchema } from "../domain/edital/edital.schema.js";
-import { createEdital } from "../services/edital.service.js";
+import type { createEdital } from "../services/edital.service.js";
+import { requireAdmin } from "../middleware/admin-auth.js";
 
-export async function editalRoutes(app: FastifyInstance) {
-  app.post("/api/edital-versions", async (request, reply) => {
+export type EditalRouteDependencies = {
+  createEdital: typeof createEdital;
+};
+
+export const editalRoutes: FastifyPluginAsync<EditalRouteDependencies> = async (
+  app,
+  { createEdital },
+) => {
+  app.post(
+    "/api/edital-versions",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
     const result = createEditalSchema.safeParse(request.body);
 
     if (!result.success) {
@@ -24,5 +35,6 @@ export async function editalRoutes(app: FastifyInstance) {
         error: "Erro interno ao criar edital",
       });
     }
-  });
-}
+    },
+  );
+};

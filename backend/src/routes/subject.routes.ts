@@ -1,9 +1,20 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import { createSubjectSchema } from "../domain/subject/subject.schema.js";
-import { createSubject } from "../services/subject.service.js";
+import type { createSubject } from "../services/subject.service.js";
+import { requireAdmin } from "../middleware/admin-auth.js";
 
-export async function subjectRoutes(app: FastifyInstance) {
-  app.post("/api/subjects", async (request, reply) => {
+export type SubjectRouteDependencies = {
+  createSubject: typeof createSubject;
+};
+
+export const subjectRoutes: FastifyPluginAsync<SubjectRouteDependencies> = async (
+  app,
+  { createSubject },
+) => {
+  app.post(
+    "/api/subjects",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
     const result = createSubjectSchema.safeParse(request.body);
 
     if (!result.success) {
@@ -24,5 +35,6 @@ export async function subjectRoutes(app: FastifyInstance) {
         error: "Erro interno ao criar disciplina",
       });
     }
-  });
-}
+    },
+  );
+};

@@ -1,22 +1,46 @@
-import type { FastifyInstance } from "fastify";
-import {
-  createCandidateSchema,
-  updateCandidateSchema,
-} from "../domain/candidate/candidate.schema.js";
-import {
+import type { FastifyPluginAsync } from "fastify";
+import type {
   createCandidate,
   deactivateCandidate,
   getCandidateById,
   getCandidates,
+  getPublicCandidates,
   updateCandidate,
 } from "../services/candidate.service.js";
+import {
+  createCandidateSchema,
+  updateCandidateSchema,
+} from "../domain/candidate/candidate.schema.js";
+import { requireAdmin } from "../middleware/admin-auth.js";
 
-export async function candidateRoutes(app: FastifyInstance) {
+export type CandidateRouteDependencies = {
+  createCandidate: typeof createCandidate;
+  deactivateCandidate: typeof deactivateCandidate;
+  getCandidateById: typeof getCandidateById;
+  getCandidates: typeof getCandidates;
+  getPublicCandidates: typeof getPublicCandidates;
+  updateCandidate: typeof updateCandidate;
+};
+
+export const candidateRoutes: FastifyPluginAsync<CandidateRouteDependencies> =
+  async (
+    app,
+    {
+      createCandidate,
+      deactivateCandidate,
+      getCandidateById,
+      getCandidates,
+      getPublicCandidates,
+      updateCandidate,
+    },
+  ) => {
   app.get("/api/candidates", async (_request, reply) => {
     try {
-      const candidates = await getCandidates();
+      const candidates = await getPublicCandidates();
 
-      return reply.status(200).send(candidates);
+      return reply.status(200).send(
+        candidates.map(({ id, name }) => ({ id, name })),
+      );
     } catch (error) {
       app.log.error({ err: error }, "Erro ao listar candidatos");
 
@@ -26,7 +50,10 @@ export async function candidateRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get("/api/candidates/:candidateId", async (request, reply) => {
+  app.get(
+    "/api/candidates/:candidateId",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
     const { candidateId } = request.params as { candidateId: string };
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -55,9 +82,61 @@ export async function candidateRoutes(app: FastifyInstance) {
         error: "Erro interno ao consultar candidato",
       });
     }
-  });
+    },
+  );
 
-  app.post("/api/candidates", async (request, reply) => {
+  app.get(
+    "/api/admin/candidates",
+    { preHandler: requireAdmin },
+    async (_request, reply) => {
+      try {
+        const candidates = await getCandidates();
+        return reply.status(200).send(candidates);
+      } catch (error) {
+        app.log.error({ err: error }, "Erro ao listar candidatos");
+        return reply.status(500).send({
+          error: "Erro interno ao listar candidatos",
+        });
+      }
+    },
+  );
+
+  app.get(
+    "/api/admin/candidates/:candidateId",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const { candidateId } = request.params as { candidateId: string };
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          candidateId,
+        )
+      ) {
+        return reply.status(400).send({
+          error: "ID do candidato inválido",
+        });
+      }
+
+      try {
+        const candidate = await getCandidateById(candidateId);
+        if (!candidate) {
+          return reply.status(404).send({
+            error: "Candidato não encontrado",
+          });
+        }
+        return reply.status(200).send(candidate);
+      } catch (error) {
+        app.log.error({ err: error }, "Erro ao consultar candidato");
+        return reply.status(500).send({
+          error: "Erro interno ao consultar candidato",
+        });
+      }
+    },
+  );
+
+  app.post(
+    "/api/candidates",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
     const result = createCandidateSchema.safeParse(request.body);
 
     if (!result.success) {
@@ -109,9 +188,13 @@ export async function candidateRoutes(app: FastifyInstance) {
         error: "Erro interno ao criar candidato",
       });
     }
-  });
+    },
+  );
 
-  app.patch("/api/candidates/:candidateId", async (request, reply) => {
+  app.patch(
+    "/api/candidates/:candidateId",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
     const { candidateId } = request.params as { candidateId: string };
 
     if (
@@ -181,9 +264,13 @@ export async function candidateRoutes(app: FastifyInstance) {
         error: "Erro interno ao atualizar candidato",
       });
     }
-  });
+    },
+  );
 
-  app.delete("/api/candidates/:candidateId", async (request, reply) => {
+  app.delete(
+    "/api/candidates/:candidateId",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
     const { candidateId } = request.params as { candidateId: string };
 
     if (
@@ -216,5 +303,6 @@ export async function candidateRoutes(app: FastifyInstance) {
         error: "Erro interno ao desativar candidato",
       });
     }
-  });
-}
+    },
+  );
+  };

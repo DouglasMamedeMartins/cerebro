@@ -4,9 +4,27 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "./db/index.js";
 import { candidates } from "./db/schema.js";
 import { createQuestionAttempt } from "./services/question-attempt.service.js";
+import {
+  createCandidate,
+  deactivateCandidate,
+  getCandidateById,
+  getCandidates,
+  getPublicCandidates,
+  updateCandidate,
+} from "./services/candidate.service.js";
+import { createEdital } from "./services/edital.service.js";
+import { createSubject } from "./services/subject.service.js";
 import { getTopicCoverage } from "./services/coverage.service.js";
 import { createTopicReview } from "./services/review.service.js";
 import { getTopicPerformance } from "./services/performance.service.js";
+import { getTopicState } from "./services/topic-state.service.js";
+import {
+  buildPriorityFromPerformance,
+  calculateTopicPriority,
+  calculateTopicPriorityForCandidate,
+  getTopicIncidencePriority,
+  getTopicWeightPriority,
+} from "./services/priority.service.js";
 import {
   getCandidateBestAction,
   getCandidateBestActionTopics,
@@ -51,17 +69,34 @@ await app.register(cors, {
   origin: true,
 });
 
-await app.register(candidateRoutes);
-await app.register(editalRoutes);
-await app.register(subjectRoutes);
-await app.register(topicRoutes);
+await app.register(candidateRoutes, {
+  createCandidate,
+  deactivateCandidate,
+  getCandidateById,
+  getCandidates,
+  getPublicCandidates,
+  updateCandidate,
+});
+await app.register(editalRoutes, { createEdital });
+await app.register(subjectRoutes, { createSubject });
+await app.register(topicRoutes, {
+  getCandidateStatus: getPerformanceCandidateStatus,
+  getTopicState,
+});
 await app.register(questionRoutes);
 await app.register(questionAttemptRoutes, { createQuestionAttempt });
 await app.register(performanceRoutes, {
   getCandidateStatus: getPerformanceCandidateStatus,
   getTopicPerformance,
 });
-await app.register(priorityRoutes);
+await app.register(priorityRoutes, {
+  getCandidateStatus: getPerformanceCandidateStatus,
+  calculateTopicPriority,
+  buildPriorityFromPerformance,
+  calculateTopicPriorityForCandidate,
+  getTopicWeightPriority,
+  getTopicIncidencePriority,
+});
 await app.register(reviewRoutes);
 await app.register(reviewCreationRoutes, { createTopicReview });
 await app.register(studyRoutes, {

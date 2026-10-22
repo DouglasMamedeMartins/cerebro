@@ -1,15 +1,37 @@
-import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { db } from "../db/index.js";
-import { candidates } from "../db/schema.js";
-import {
-  buildPriorityFromPerformance,
-  calculateTopicPriority,
-  calculateTopicPriorityForCandidate,
-  getTopicIncidencePriority,
-  getTopicWeightPriority,
-} from "../services/priority.service.js";
+import type { candidates } from "../db/schema.js";
+import type {
+  PerformancePriorityContext,
+  TopicPriority,
+  TopicPriorityInput,
+  WeightPriorityContext,
+} from "../domain/priority/priority.schema,.js";
+
+type PriorityRouteCandidate = Pick<
+  typeof candidates.$inferSelect,
+  "id" | "isActive"
+>;
+
+export type PriorityRouteDependencies = {
+  getCandidateStatus: (
+    candidateId: string,
+  ) => Promise<PriorityRouteCandidate | undefined>;
+  calculateTopicPriority: (factors: TopicPriorityInput) => TopicPriority;
+  buildPriorityFromPerformance: (
+    performance: PerformancePriorityContext,
+    weightContext?: WeightPriorityContext,
+    reviewFactor?: number,
+    coverageFactor?: number,
+  ) => TopicPriorityInput;
+  calculateTopicPriorityForCandidate: (
+    topicId: string,
+    candidateId: string,
+    asOf?: Date,
+  ) => Promise<TopicPriority>;
+  getTopicWeightPriority: (topicId: string) => Promise<WeightPriorityContext>;
+  getTopicIncidencePriority: (topicId: string) => Promise<number>;
+};
 
 const prioritySchema = z.object({
   deficit: z.number().min(0).max(100),
@@ -22,7 +44,17 @@ const prioritySchema = z.object({
   urgency: z.number().min(0).max(100),
 });
 
-export async function priorityRoutes(app: FastifyInstance) {
+export const priorityRoutes: FastifyPluginAsync<PriorityRouteDependencies> = async (
+  app,
+  {
+    getCandidateStatus,
+    calculateTopicPriority,
+    buildPriorityFromPerformance,
+    calculateTopicPriorityForCandidate,
+    getTopicWeightPriority,
+    getTopicIncidencePriority,
+  },
+) => {
   app.post("/api/priority/calculate", async (request, reply) => {
     const result = prioritySchema.safeParse(request.body);
 
@@ -148,14 +180,7 @@ export async function priorityRoutes(app: FastifyInstance) {
     }
 
     try {
-      const [candidate] = await db
-        .select({
-          id: candidates.id,
-          isActive: candidates.isActive,
-        })
-        .from(candidates)
-        .where(eq(candidates.id, queryResult.data.candidateId))
-        .limit(1);
+      const candidate = await getCandidateStatus(queryResult.data.candidateId);
 
       if (!candidate) {
         return reply.status(404).send({
@@ -225,4 +250,4 @@ export async function priorityRoutes(app: FastifyInstance) {
       });
     }
   });
-}
+};

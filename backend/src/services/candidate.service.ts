@@ -27,6 +27,17 @@ export async function getCandidates() {
     .orderBy(candidates.createdAt);
 }
 
+export async function getPublicCandidates() {
+  return await db
+    .select({
+      id: candidates.id,
+      name: candidates.name,
+    })
+    .from(candidates)
+    .where(eq(candidates.isActive, true))
+    .orderBy(candidates.createdAt);
+}
+
 export async function getCandidateById(candidateId: string) {
   const [candidate] = await db
     .select()

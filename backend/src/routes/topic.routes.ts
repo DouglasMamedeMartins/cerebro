@@ -1,12 +1,29 @@
-import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 
-import { db } from "../db/index.js";
-import { candidates } from "../db/schema.js";
-import { getTopicState } from "../services/topic-state.service.js";
+import type { candidates } from "../db/schema.js";
+import type { TopicState } from "../domain/topic/topic-state.schema.js";
 
-export async function topicRoutes(app: FastifyInstance) {
+type TopicRouteCandidate = Pick<
+  typeof candidates.$inferSelect,
+  "id" | "isActive"
+>;
+
+export type TopicRouteDependencies = {
+  getCandidateStatus: (
+    candidateId: string,
+  ) => Promise<TopicRouteCandidate | undefined>;
+  getTopicState: (
+    candidateId: string,
+    topicId: string,
+    asOf?: Date,
+  ) => Promise<TopicState>;
+};
+
+export const topicRoutes: FastifyPluginAsync<TopicRouteDependencies> = async (
+  app,
+  { getCandidateStatus, getTopicState },
+) => {
   app.get("/api/topics/:topicId/state", async (request, reply) => {
     const paramsSchema = z.object({
       topicId: z.uuid(),
@@ -30,14 +47,7 @@ export async function topicRoutes(app: FastifyInstance) {
       });
     }
 
-    const [candidate] = await db
-      .select({
-        id: candidates.id,
-        isActive: candidates.isActive,
-      })
-      .from(candidates)
-      .where(eq(candidates.id, queryResult.data.candidateId))
-      .limit(1);
+    const candidate = await getCandidateStatus(queryResult.data.candidateId);
 
     if (!candidate) {
       return reply.status(404).send({
@@ -59,4 +69,4 @@ export async function topicRoutes(app: FastifyInstance) {
 
     return reply.send(state);
   });
-}
+};
