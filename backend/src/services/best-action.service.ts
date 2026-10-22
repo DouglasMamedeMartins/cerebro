@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db } from "../db/index.js";
+import { candidates } from "../db/schema.js";
 import { getTopicState } from "./topic-state.service.js";
 
 import type {
@@ -11,6 +14,23 @@ export async function getBestAction(
   topicId: string,
   asOf = new Date(),
 ): Promise<BestAction> {
+  const [candidate] = await db
+    .select({
+      id: candidates.id,
+      isActive: candidates.isActive,
+    })
+    .from(candidates)
+    .where(eq(candidates.id, candidateId))
+    .limit(1);
+
+  if (!candidate) {
+    throw new Error("CANDIDATE_NOT_FOUND");
+  }
+
+  if (candidate.isActive === false) {
+    throw new Error("CANDIDATE_INACTIVE");
+  }
+
   const state = await getTopicState(candidateId, topicId, asOf);
 
   const reasons: ActionReason[] = [];

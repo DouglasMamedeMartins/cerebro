@@ -35,13 +35,31 @@ export async function bestActionRoutes(app: FastifyInstance) {
         });
       }
 
-      const action = await getBestAction(
-        paramsResult.data.candidateId,
-        paramsResult.data.topicId,
-        queryResult.data.asOf ? new Date(queryResult.data.asOf) : new Date(),
-      );
+      try {
+        const action = await getBestAction(
+          paramsResult.data.candidateId,
+          paramsResult.data.topicId,
+          queryResult.data.asOf ? new Date(queryResult.data.asOf) : new Date(),
+        );
 
-      return reply.send(action);
+        return reply.send(action);
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message === "CANDIDATE_NOT_FOUND") {
+            return reply.status(404).send({
+              error: "CANDIDATE_NOT_FOUND",
+            });
+          }
+
+          if (error.message === "CANDIDATE_INACTIVE") {
+            return reply.status(403).send({
+              error: "CANDIDATE_INACTIVE",
+            });
+          }
+        }
+
+        throw error;
+      }
     },
   );
 }

@@ -36,15 +36,39 @@ export async function candidateBestActionRoutes(app: FastifyInstance) {
         });
       }
 
-      const topics = await getCandidateBestActionTopics(
-        paramsResult.data.candidateId,
-        queryResult.data.asOf ? new Date(queryResult.data.asOf) : new Date(),
-      );
+      try {
+        const topics = await getCandidateBestActionTopics(
+          paramsResult.data.candidateId,
+          queryResult.data.asOf ? new Date(queryResult.data.asOf) : new Date(),
+        );
 
-      return reply.send({
-        count: topics.length,
-        topics,
-      });
+        return reply.send({
+          count: topics.length,
+          topics,
+        });
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message === "CANDIDATE_NOT_FOUND") {
+            return reply.status(404).send({
+              error: "CANDIDATE_NOT_FOUND",
+            });
+          }
+
+          if (error.message === "CANDIDATE_INACTIVE") {
+            return reply.status(403).send({
+              error: "CANDIDATE_INACTIVE",
+            });
+          }
+
+          if (error.message === "CANDIDATE_WITHOUT_EDITAL") {
+            return reply.status(400).send({
+              error: "CANDIDATE_WITHOUT_EDITAL",
+            });
+          }
+        }
+
+        throw error;
+      }
     },
   );
 

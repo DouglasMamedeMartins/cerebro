@@ -1,5 +1,8 @@
 import type { FastifyInstance } from "fastify";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { db } from "../db/index.js";
+import { candidates } from "../db/schema.js";
 import {
   calculateReviewPriority,
   createTopicReview,
@@ -65,16 +68,34 @@ export async function reviewRoutes(app: FastifyInstance) {
       });
     }
 
-    const review = await createTopicReview({
-      candidateId: result.data.candidateId,
-      topicId: result.data.topicId,
-      masteryStatus: result.data.masteryStatus,
-      reviewedAt: result.data.reviewedAt
-        ? new Date(result.data.reviewedAt)
-        : undefined,
-    });
+    try {
+      const review = await createTopicReview({
+        candidateId: result.data.candidateId,
+        topicId: result.data.topicId,
+        masteryStatus: result.data.masteryStatus,
+        reviewedAt: result.data.reviewedAt
+          ? new Date(result.data.reviewedAt)
+          : undefined,
+      });
 
-    return reply.status(201).send(review);
+      return reply.status(201).send(review);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === "CANDIDATE_NOT_FOUND") {
+          return reply.status(404).send({
+            error: "CANDIDATE_NOT_FOUND",
+          });
+        }
+
+        if (error.message === "CANDIDATE_INACTIVE") {
+          return reply.status(403).send({
+            error: "CANDIDATE_INACTIVE",
+          });
+        }
+      }
+
+      throw error;
+    }
   });
 
   app.get(
@@ -91,6 +112,27 @@ export async function reviewRoutes(app: FastifyInstance) {
         return reply.status(400).send({
           error: "INVALID_INPUT",
           details: result.error.flatten(),
+        });
+      }
+
+      const [candidate] = await db
+        .select({
+          id: candidates.id,
+          isActive: candidates.isActive,
+        })
+        .from(candidates)
+        .where(eq(candidates.id, result.data.candidateId))
+        .limit(1);
+
+      if (!candidate) {
+        return reply.status(404).send({
+          error: "CANDIDATE_NOT_FOUND",
+        });
+      }
+
+      if (!candidate.isActive) {
+        return reply.status(403).send({
+          error: "CANDIDATE_INACTIVE",
         });
       }
 

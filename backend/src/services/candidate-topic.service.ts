@@ -21,6 +21,7 @@ export async function getCandidateTopics(
   const [candidate] = await db
     .select({
       candidateId: candidates.id,
+      isActive: candidates.isActive,
       editalVersionId: candidates.editalVersionId,
     })
     .from(candidates)
@@ -29,6 +30,10 @@ export async function getCandidateTopics(
 
   if (!candidate) {
     throw new Error("CANDIDATE_NOT_FOUND");
+  }
+
+  if (!candidate.isActive) {
+    throw new Error("CANDIDATE_INACTIVE");
   }
 
   if (!candidate.editalVersionId) {

@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { topicReviews } from "../db/schema.js";
+import { candidates, topicReviews } from "../db/schema.js";
 import { MasteryStatus } from "../domain/performance/performance.types.js";
 
 export interface ReviewSchedule {
@@ -95,6 +95,23 @@ export async function createTopicReview(input: {
   masteryStatus: MasteryStatus;
   reviewedAt?: Date;
 }) {
+  const [candidate] = await db
+    .select({
+      id: candidates.id,
+      isActive: candidates.isActive,
+    })
+    .from(candidates)
+    .where(eq(candidates.id, input.candidateId))
+    .limit(1);
+
+  if (!candidate) {
+    throw new Error("CANDIDATE_NOT_FOUND");
+  }
+
+  if (!candidate.isActive) {
+    throw new Error("CANDIDATE_INACTIVE");
+  }
+
   const [review] = await db
     .insert(topicReviews)
     .values({

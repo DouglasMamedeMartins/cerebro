@@ -33,6 +33,12 @@ export async function candidateTopicRoutes(app: FastifyInstance) {
           });
         }
 
+        if (error.message === "CANDIDATE_INACTIVE") {
+          return reply.status(403).send({
+            error: "CANDIDATE_INACTIVE",
+          });
+        }
+
         if (error.message === "CANDIDATE_WITHOUT_EDITAL") {
           return reply.status(400).send({
             error: "CANDIDATE_WITHOUT_EDITAL",

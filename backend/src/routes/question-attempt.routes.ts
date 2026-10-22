@@ -27,6 +27,12 @@ export async function questionAttemptRoutes(app: FastifyInstance) {
           });
         }
 
+        if (error.message === "CANDIDATE_INACTIVE") {
+          return reply.status(403).send({
+            error: "CANDIDATE_INACTIVE",
+          });
+        }
+
         if (error.message === "QUESTION_NOT_FOUND") {
           return reply.status(404).send({
             error: "Questão não encontrada",

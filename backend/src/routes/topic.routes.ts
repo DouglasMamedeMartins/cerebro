@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { db } from "../db/index.js";
+import { candidates } from "../db/schema.js";
 import { getTopicState } from "../services/topic-state.service.js";
 
 export async function topicRoutes(app: FastifyInstance) {
@@ -24,6 +27,27 @@ export async function topicRoutes(app: FastifyInstance) {
           params: paramsResult.success ? null : paramsResult.error.flatten(),
           query: queryResult.success ? null : queryResult.error.flatten(),
         },
+      });
+    }
+
+    const [candidate] = await db
+      .select({
+        id: candidates.id,
+        isActive: candidates.isActive,
+      })
+      .from(candidates)
+      .where(eq(candidates.id, queryResult.data.candidateId))
+      .limit(1);
+
+    if (!candidate) {
+      return reply.status(404).send({
+        error: "CANDIDATE_NOT_FOUND",
+      });
+    }
+
+    if (!candidate.isActive) {
+      return reply.status(403).send({
+        error: "CANDIDATE_INACTIVE",
       });
     }
 

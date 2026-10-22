@@ -7,13 +7,20 @@ import type { CreateQuestionAttemptInput } from "../domain/question-attempt/ques
 
 export async function createQuestionAttempt(data: CreateQuestionAttemptInput) {
   const [candidate] = await db
-    .select({ id: candidates.id })
+    .select({
+      id: candidates.id,
+      isActive: candidates.isActive,
+    })
     .from(candidates)
     .where(eq(candidates.id, data.candidateId))
     .limit(1);
 
   if (!candidate) {
     throw new Error("CANDIDATE_NOT_FOUND");
+  }
+
+  if (!candidate.isActive) {
+    throw new Error("CANDIDATE_INACTIVE");
   }
 
   const [question] = await db

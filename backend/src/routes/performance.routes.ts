@@ -1,5 +1,8 @@
 import type { FastifyInstance } from "fastify";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { db } from "../db/index.js";
+import { candidates } from "../db/schema.js";
 import { getTopicPerformance } from "../services/performance.service.js";
 
 const performanceQuerySchema = z.object({
@@ -31,6 +34,27 @@ export async function performanceRoutes(app: FastifyInstance) {
     }
 
     try {
+      const [candidate] = await db
+        .select({
+          id: candidates.id,
+          isActive: candidates.isActive,
+        })
+        .from(candidates)
+        .where(eq(candidates.id, queryResult.data.candidateId))
+        .limit(1);
+
+      if (!candidate) {
+        return reply.status(404).send({
+          error: "CANDIDATE_NOT_FOUND",
+        });
+      }
+
+      if (!candidate.isActive) {
+        return reply.status(403).send({
+          error: "CANDIDATE_INACTIVE",
+        });
+      }
+
       const performance = await getTopicPerformance(
         paramsResult.data.topicId,
         queryResult.data.candidateId,
