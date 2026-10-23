@@ -1,121 +1,61 @@
+import { Sparkles } from 'lucide-react'
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { DashboardHeader } from './components/DashboardHeader'
+import { MetricCards } from './components/MetricCards'
+import { NextBestAction } from './components/NextBestAction'
+import { PriorityReviews } from './components/PriorityReviews'
+import { PerformancePage } from './components/PerformancePage'
+import { QuestionsPage } from './components/QuestionsPage'
+import { ReviewsPage } from './components/ReviewsPage'
+import { Sidebar } from './components/Sidebar'
+import { StudyPlan } from './components/StudyPlan'
+import { StudyPlanPage } from './components/StudyPlanPage'
+import { StudyProgress } from './components/StudyProgress'
+import type { DashboardSection } from './data/dashboard'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activeSection, setActiveSection] = useState<DashboardSection>('Visão geral')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  function chooseSection(section: DashboardSection) {
+    setActiveSection(section)
+    setMenuOpen(false)
+    setNotice('')
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <div className="app-shell min-h-screen bg-[#080e1b] text-[#e9eff9]">
+      {menuOpen && <button className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
+      <Sidebar activeSection={activeSection} mobileOpen={menuOpen} onSelect={chooseSection} onClose={() => setMenuOpen(false)} />
+      <main className="main-content min-h-screen">
+        <DashboardHeader section={activeSection} onOpenMenu={() => setMenuOpen(true)} />
+        {activeSection === 'Visão geral' ? <div className="page-content">
+          <section className="welcome-row flex items-end justify-between">
+            <div><div className="eyebrow"><span className="eyebrow-line" /> SEU ESPAÇO DE PREPARAÇÃO</div><h1>Visão geral</h1><p className="welcome-copy">Bom estudo! Vamos avançar hoje.</p></div>
+            <div className="date-label"><span className="status-pulse" /> Painel demonstrativo</div>
+          </section>
+          {notice && <div className="inline-notice" role="status">{notice}</div>}
+          <MetricCards />
+          <div className="overview-grid grid">
+            <StudyProgress onViewPerformance={() => chooseSection('Desempenho')} />
+            <NextBestAction onAction={() => setNotice('Esta recomendação é demonstrativa. A ação adaptativa ainda não está conectada.')} />
+          </div>
+          <div className="lower-grid grid">
+            <StudyPlan onViewPlan={() => chooseSection('Plano de estudos')} />
+            <PriorityReviews onViewReviews={() => chooseSection('Revisões')} />
+          </div>
+          <footer className="page-footer flex items-center justify-between"><span><span className="footer-mark">C</span> PMDF CÉREBRO</span><span>Interface demonstrativa · Os dados exibidos são fictícios.</span><span>Preparação com propósito <Sparkles size={14} aria-hidden="true" /></span></footer>
+        </div> : <div className="page-content">
+          {activeSection === 'Plano de estudos' && <StudyPlanPage />}
+          {activeSection === 'Questões' && <QuestionsPage />}
+          {activeSection === 'Revisões' && <ReviewsPage />}
+          {activeSection === 'Desempenho' && <PerformancePage />}
+          <footer className="page-footer flex items-center justify-between"><span><span className="footer-mark">C</span> PMDF CÉREBRO</span><span>Interface demonstrativa · Os dados exibidos são fictícios.</span><span>Preparação com propósito <Sparkles size={14} aria-hidden="true" /></span></footer>
+        </div>}
+      </main>
+    </div>
   )
 }
 
