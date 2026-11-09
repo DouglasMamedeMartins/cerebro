@@ -76,10 +76,14 @@ test("GET /api/candidates retorna somente id e name de candidatos ativos", async
   });
   t.after(() => app.close());
 
+  const previousAdminKey = process.env.ADMIN_API_KEY;
+  process.env.ADMIN_API_KEY = adminKey;
   const response = await app.inject({ method: "GET", url: "/api/candidates" });
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), [{ id: candidate.id, name: candidate.name }]);
-  assert.equal(publicListCalls, 1);
+  if (previousAdminKey === undefined) delete process.env.ADMIN_API_KEY;
+  else process.env.ADMIN_API_KEY = previousAdminKey;
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.json().error, "Acesso administrativo não autorizado");
+  assert.equal(publicListCalls, 0);
 
   const serialized = JSON.stringify(response.json());
   for (const privateField of [

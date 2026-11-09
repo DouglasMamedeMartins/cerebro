@@ -14,14 +14,14 @@ export async function createCandidate(data: CreateCandidateInput) {
       email: data.email,
       editalVersionId: data.editalVersionId,
     })
-    .returning();
+    .returning({ id: candidates.id, name: candidates.name, email: candidates.email, isActive: candidates.isActive, editalVersionId: candidates.editalVersionId, createdAt: candidates.createdAt, updatedAt: candidates.updatedAt });
 
   return candidate;
 }
 
 export async function getCandidates() {
   return await db
-    .select()
+    .select({ id: candidates.id, name: candidates.name, email: candidates.email, isActive: candidates.isActive, editalVersionId: candidates.editalVersionId, createdAt: candidates.createdAt, updatedAt: candidates.updatedAt })
     .from(candidates)
     .where(eq(candidates.isActive, true))
     .orderBy(candidates.createdAt);
@@ -40,7 +40,7 @@ export async function getPublicCandidates() {
 
 export async function getCandidateById(candidateId: string) {
   const [candidate] = await db
-    .select()
+    .select({ id: candidates.id, name: candidates.name, email: candidates.email, isActive: candidates.isActive, editalVersionId: candidates.editalVersionId, createdAt: candidates.createdAt, updatedAt: candidates.updatedAt })
     .from(candidates)
     .where(eq(candidates.id, candidateId))
     .limit(1);
@@ -63,7 +63,7 @@ export async function updateCandidate(
       updatedAt: new Date(),
     })
     .where(and(eq(candidates.id, candidateId), eq(candidates.isActive, true)))
-    .returning();
+    .returning({ id: candidates.id, name: candidates.name, email: candidates.email, isActive: candidates.isActive, editalVersionId: candidates.editalVersionId, createdAt: candidates.createdAt, updatedAt: candidates.updatedAt });
 
   return candidate ?? null;
 }
@@ -76,7 +76,7 @@ export async function deactivateCandidate(candidateId: string) {
       updatedAt: new Date(),
     })
     .where(eq(candidates.id, candidateId))
-    .returning();
+    .returning({ id: candidates.id, name: candidates.name, email: candidates.email, isActive: candidates.isActive, editalVersionId: candidates.editalVersionId, createdAt: candidates.createdAt, updatedAt: candidates.updatedAt });
 
   return candidate ?? null;
 }

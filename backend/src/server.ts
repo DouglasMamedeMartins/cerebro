@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import { eq, sql } from "drizzle-orm";
 import { db } from "./db/index.js";
 import { candidates } from "./db/schema.js";
@@ -47,6 +48,8 @@ import { studyRoutes } from "./routes/study.routes.js";
 import { bestActionRoutes } from "./routes/best-action.routes.js";
 import { candidateTopicRoutes } from "./routes/candidate-topic.routes.js";
 import { candidateBestActionRoutes } from "./routes/candidate-best-action.routes.js";
+import { authRoutes } from "./routes/auth.routes.js";
+import { candidateIdMatches, requireCandidate } from "./middleware/candidate-auth.js";
 
 const app = Fastify({
   logger: true,
@@ -65,9 +68,29 @@ async function getPerformanceCandidateStatus(candidateId: string) {
   return candidate;
 }
 
-await app.register(cors, {
-  origin: true,
+const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173")
+  .split(",").map((origin) => origin.trim()).filter(Boolean);
+await app.register(cookie);
+await app.register(cors, { origin: allowedOrigins, credentials: true });
+
+const isAdminEndpoint = (method: string, path: string) => path.startsWith("/api/admin/") ||
+  (path === "/api/candidates" && ["GET", "POST"].includes(method)) ||
+  (/^\/api\/candidates\/[0-9a-f-]+$/i.test(path) && ["GET", "PATCH", "DELETE"].includes(method));
+app.addHook("onRequest", async (request, reply) => {
+  if (!request.url.startsWith("/api/")) return;
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) && request.headers.origin && !allowedOrigins.includes(request.headers.origin)) {
+    return reply.status(403).send({ error: "ORIGIN_NOT_ALLOWED" });
+  }
 });
+app.addHook("preHandler", async (request, reply) => {
+  const path = request.url.split("?", 1)[0];
+  if (!path.startsWith("/api/") || path === "/api/auth/login" || path === "/api/auth/logout" || path === "/api/auth/me" || isAdminEndpoint(request.method, path)) return;
+  await requireCandidate(request, reply);
+  if (reply.sent) return;
+  candidateIdMatches(request, reply);
+});
+
+await app.register(authRoutes);
 
 await app.register(candidateRoutes, {
   createCandidate,

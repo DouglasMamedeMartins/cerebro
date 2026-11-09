@@ -16,6 +16,7 @@
   "keywords": [],
   "type": "module",
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.3.0",
     "argon2": "^0.45.1",
     "dotenv": "^18.0.6",

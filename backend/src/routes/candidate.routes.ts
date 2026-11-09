@@ -34,7 +34,7 @@ export const candidateRoutes: FastifyPluginAsync<CandidateRouteDependencies> =
       updateCandidate,
     },
   ) => {
-  app.get("/api/candidates", async (_request, reply) => {
+  app.get("/api/candidates", { preHandler: requireAdmin }, async (_request, reply) => {
     try {
       const candidates = await getPublicCandidates();
 

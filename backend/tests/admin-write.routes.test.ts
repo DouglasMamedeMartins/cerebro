@@ -315,8 +315,8 @@ test("lista de candidatos permanece pública e detalhe legado exige chave admini
       url: `/api/candidates/${candidateId}`,
     });
 
-    assert.equal(listResponse.statusCode, 200);
-    assert.deepEqual(listResponse.json(), [{ id: candidate.id, name: candidate.name }]);
+    assert.equal(listResponse.statusCode, 401);
+    assert.equal(listResponse.json().error, "Acesso administrativo não autorizado");
     assert.equal(unauthorizedDetailResponse.statusCode, 401);
     assert.deepEqual(unauthorizedDetailResponse.json(), {
       error: "Acesso administrativo não autorizado",
@@ -329,6 +329,9 @@ test("lista de candidatos permanece pública e detalhe legado exige chave admini
     });
     assert.equal(detailResponse.statusCode, 200);
     assert.deepEqual(detailResponse.json(), serializedCandidate);
-    assert.deepEqual(calls, ["list", candidateId]);
+    const authorizedListResponse = await app.inject({ method: "GET", url: "/api/candidates", headers: { "x-admin-key": adminKey } });
+    assert.equal(authorizedListResponse.statusCode, 200);
+    assert.deepEqual(authorizedListResponse.json(), [{ id: candidate.id, name: candidate.name }]);
+    assert.deepEqual(calls, [candidateId, "list"]);
   });
 });

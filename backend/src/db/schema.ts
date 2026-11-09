@@ -22,6 +22,8 @@ export const candidates = pgTable("candidates", {
     .notNull()
     .unique(),
 
+  passwordHash: text("password_hash"),
+
   isActive: boolean("is_active").default(true).notNull(),
 
   editalVersionId: uuid("edital_version_id").references(
@@ -39,6 +41,15 @@ export const candidates = pgTable("candidates", {
   })
     .defaultNow()
     .notNull(),
+});
+
+export const candidateSessions = pgTable("candidate_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  candidateId: uuid("candidate_id").notNull().references(() => candidates.id),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const editalVersions = pgTable("edital_versions", {
