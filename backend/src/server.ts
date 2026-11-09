@@ -49,7 +49,9 @@ import { bestActionRoutes } from "./routes/best-action.routes.js";
 import { candidateTopicRoutes } from "./routes/candidate-topic.routes.js";
 import { candidateBestActionRoutes } from "./routes/candidate-best-action.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
-import { candidateIdMatches, requireCandidate } from "./middleware/candidate-auth.js";
+import { createRequireCandidate } from "./middleware/candidate-auth.js";
+import { installApiAuthGuards } from "./middleware/api-auth-guards.js";
+import { createDrizzleCandidateAuthStore } from "./services/candidate-auth.store.js";
 
 const app = Fastify({
   logger: true,
@@ -72,25 +74,11 @@ const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173,http:
   .split(",").map((origin) => origin.trim()).filter(Boolean);
 await app.register(cookie);
 await app.register(cors, { origin: allowedOrigins, credentials: true });
+const authStore = createDrizzleCandidateAuthStore(db);
+const requireCandidate = createRequireCandidate(authStore);
+installApiAuthGuards(app, requireCandidate, allowedOrigins);
 
-const isAdminEndpoint = (method: string, path: string) => path.startsWith("/api/admin/") ||
-  (path === "/api/candidates" && ["GET", "POST"].includes(method)) ||
-  (/^\/api\/candidates\/[0-9a-f-]+$/i.test(path) && ["GET", "PATCH", "DELETE"].includes(method));
-app.addHook("onRequest", async (request, reply) => {
-  if (!request.url.startsWith("/api/")) return;
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) && request.headers.origin && !allowedOrigins.includes(request.headers.origin)) {
-    return reply.status(403).send({ error: "ORIGIN_NOT_ALLOWED" });
-  }
-});
-app.addHook("preHandler", async (request, reply) => {
-  const path = request.url.split("?", 1)[0];
-  if (!path.startsWith("/api/") || path === "/api/auth/login" || path === "/api/auth/logout" || path === "/api/auth/me" || isAdminEndpoint(request.method, path)) return;
-  await requireCandidate(request, reply);
-  if (reply.sent) return;
-  candidateIdMatches(request, reply);
-});
-
-await app.register(authRoutes);
+await app.register(authRoutes, { store: authStore, requireCandidate });
 
 await app.register(candidateRoutes, {
   createCandidate,
