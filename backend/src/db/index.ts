@@ -8,6 +8,8 @@ if (!connectionString) {
   throw new Error("DATABASE_URL não configurada");
 }
 
-const client = postgres(connectionString);
+const client = postgres(connectionString, {
+  ssl: process.env.NODE_ENV === "production" ? "require" : false,
+});
 
 export const db = drizzle(client);

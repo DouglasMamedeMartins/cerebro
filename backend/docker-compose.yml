@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: kyousuke6900
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configure POSTGRES_PASSWORD no arquivo backend/.env}
       POSTGRES_DB: pmdf_cerebro
     ports:
       - "5432:5432"
