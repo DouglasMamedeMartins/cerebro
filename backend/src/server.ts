@@ -1,4 +1,7 @@
 import Fastify from "fastify";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import { eq, sql } from "drizzle-orm";
@@ -52,6 +55,7 @@ import { authRoutes } from "./routes/auth.routes.js";
 import { createRequireCandidate } from "./middleware/candidate-auth.js";
 import { installApiAuthGuards } from "./middleware/api-auth-guards.js";
 import { createDrizzleCandidateAuthStore } from "./services/candidate-auth.store.js";
+import { registerFrontendStatic } from "./plugins/frontend-static.js";
 
 const app = Fastify({
   logger: true,
@@ -70,7 +74,7 @@ async function getPerformanceCandidateStatus(candidateId: string) {
   return candidate;
 }
 
-const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173")
+const allowedOrigins = (process.env.CORS_ORIGINS ?? "https://cerebro-337s.onrender.com,http://localhost:5173,http://127.0.0.1:5173")
   .split(",").map((origin) => origin.trim()).filter(Boolean);
 await app.register(cookie);
 await app.register(cors, { origin: allowedOrigins, credentials: true });
@@ -132,6 +136,15 @@ app.get("/health", async () => {
     time: result[0],
   };
 });
+
+const frontendDist = resolve(dirname(fileURLToPath(import.meta.url)), "../../frontend/dist");
+if (existsSync(frontendDist)) {
+  await registerFrontendStatic(app, frontendDist);
+} else if (process.env.NODE_ENV === "production") {
+  throw new Error(`Frontend build not found at ${frontendDist}`);
+} else {
+  app.log.warn({ frontendDist }, "Frontend build not found; static serving is disabled");
+}
 
 const PORT = Number(process.env.PORT) || 3333;
 

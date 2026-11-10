@@ -28,6 +28,10 @@
 .breadcrumb { display: flex; align-items: center; gap: 10px; color: #71819a; font-size: 11px; }
 .breadcrumb strong { color: #c4cede; font-weight: 550; }
 .profile-chip { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border: 1px solid #1d293b; border-radius: 8px; background: #0d1625; }
+.profile-actions { display: flex; align-items: center; gap: 10px; }
+.logout-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid #263448; border-radius: 6px; color: #9aabc1; background: #111c2b; font: inherit; font-size: 10px; cursor: pointer; }
+.logout-button:hover:not(:disabled) { border-color: #3b536d; color: #e9eff9; }
+.logout-button:disabled { opacity: .65; cursor: wait; }
 .avatar { display: grid; width: 31px; height: 31px; place-items: center; border: 1px solid #315064; border-radius: 7px; color: #89e5ec; background: #163040; font-size: 10px; font-weight: 700; }
 .profile-copy { display: grid; gap: 2px; }
 .profile-copy strong { color: #d5deeb; font-size: 10px; font-weight: 600; }
@@ -334,6 +338,29 @@
 .performance-note { display: flex; align-items: center; gap: 7px; margin: 14px 0 0; color: #718197; font-size: 8px; }
 .performance-note svg { flex: 0 0 auto; color: #7ca9b3; }
 
+.auth-screen { display: grid; min-height: 100vh; place-items: center; padding: 24px; background: radial-gradient(ellipse at 50% 0%, #12283a 0, #080e1b 56%); }
+.auth-card { width: min(100%, 410px); padding: 34px; border: 1px solid #1d2c40; border-radius: 12px; background: rgba(11, 19, 34, .96); box-shadow: 0 22px 70px rgba(0, 0, 0, .28); }
+.auth-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 34px; }
+.auth-icon { display: grid; width: 39px; height: 39px; place-items: center; margin-bottom: 19px; border: 1px solid #28505b; border-radius: 8px; color: #68d4df; background: #132a34; }
+.auth-eyebrow { margin-bottom: 7px; color: #64cada; font-size: 9px; font-weight: 750; letter-spacing: .15em; }
+.auth-card h1 { margin: 0 0 7px; color: #f2f6fc; font-size: 24px; font-weight: 610; letter-spacing: -.035em; }
+.auth-description { margin: 0; color: #8391a7; font-size: 12px; line-height: 1.6; }
+.auth-form { display: grid; gap: 9px; margin-top: 26px; }
+.auth-form label { margin-top: 5px; color: #b8c5d6; font-size: 11px; }
+.auth-form input { width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid #26364b; border-radius: 6px; outline: none; color: #edf3fb; background: #0a1321; font: inherit; font-size: 12px; }
+.auth-form input:focus { border-color: #3d9bad; box-shadow: 0 0 0 2px rgba(61, 155, 173, .15); }
+.auth-form input:disabled { opacity: .7; }
+.auth-submit { display: flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; margin-top: 9px; border: 1px solid #2b8794; border-radius: 6px; color: #effeff; background: linear-gradient(100deg, #176478, #1b7884); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.auth-submit:hover:not(:disabled) { background: linear-gradient(100deg, #1b7184, #218894); }
+.auth-submit:disabled { opacity: .7; cursor: wait; }
+.auth-error { margin: 5px 0 0; color: #f1a99c; font-size: 11px; }
+.auth-footer { margin: 25px 0 0; padding-top: 16px; border-top: 1px solid #1b2839; color: #718197; font-size: 10px; text-align: center; }
+.auth-loading { display: flex; align-items: center; gap: 11px; color: #b8c5d6; font-size: 12px; }
+.loading-spinner { width: 18px; height: 18px; border: 2px solid #294252; border-top-color: #58dfee; border-radius: 50%; animation: auth-spin .8s linear infinite; }
+.auth-session-error h1 { margin-top: 0; }
+.auth-session-error .auth-submit { width: 100%; margin-top: 22px; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+
 @media (max-width: 1000px) {
   .plan-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .question-layout { grid-template-columns: minmax(0, 1fr) 220px; }
@@ -355,6 +382,13 @@
   .review-summary-progress { width: calc(100% - 53px); margin-left: 53px; }
 }
 @media (max-width: 520px) {
+  .auth-card { padding: 26px 22px; }
+  .profile-actions { gap: 5px; margin-left: auto; }
+  .logout-button { padding: 7px; }
+  .logout-button span { display: none; }
+  .profile-chip { gap: 6px; }
+  .profile-copy { max-width: 105px; overflow: hidden; }
+  .profile-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .page-heading { display: block; }
   .demo-page-tag { margin-top: 13px; }
   .plan-summary-grid { gap: 8px; }
