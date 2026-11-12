@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { DashboardHeader } from './components/DashboardHeader'
+import { ChangePasswordDialog } from './components/ChangePasswordDialog'
 import { LoginPage } from './components/LoginPage'
 import { MetricCards } from './components/MetricCards'
 import { NextBestAction } from './components/NextBestAction'
@@ -24,6 +25,7 @@ function App() {
   const [sessionStatus, setSessionStatus] = useState<'checking' | 'authenticated' | 'unauthenticated' | 'error'>('checking')
   const [sessionError, setSessionError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<DashboardSection>('Visão geral')
   const [menuOpen, setMenuOpen] = useState(false)
   const [notice, setNotice] = useState('')
@@ -96,7 +98,8 @@ function App() {
       {menuOpen && <button className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
       <Sidebar activeSection={activeSection} mobileOpen={menuOpen} onSelect={chooseSection} onClose={() => setMenuOpen(false)} />
       <main className="main-content min-h-screen">
-        <DashboardHeader section={activeSection} candidate={candidate} onLogout={() => void handleLogout()} loggingOut={loggingOut} onOpenMenu={() => setMenuOpen(true)} />
+        <DashboardHeader section={activeSection} candidate={candidate} onLogout={() => void handleLogout()} onOpenPasswordChange={() => setPasswordDialogOpen(true)} loggingOut={loggingOut} onOpenMenu={() => setMenuOpen(true)} />
+        {passwordDialogOpen && <ChangePasswordDialog onClose={() => setPasswordDialogOpen(false)} />}
         {activeSection === 'Visão geral' ? <div className="page-content">
           <section className="welcome-row flex items-end justify-between">
             <div><div className="eyebrow"><span className="eyebrow-line" /> SEU ESPAÇO DE PREPARAÇÃO</div><h1>Visão geral</h1><p className="welcome-copy">Bom estudo! Vamos avançar hoje.</p></div>

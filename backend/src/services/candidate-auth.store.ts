@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { candidateSessions, candidates } from "../db/schema.js";
 
@@ -12,7 +12,15 @@ export type AuthCandidate = {
 
 export type CandidateAuthStore = {
   findCandidateByEmail(email: string): Promise<AuthCandidate | undefined>;
+  getCandidatePasswordHash(candidateId: string): Promise<string | null | undefined>;
   setCandidatePassword(candidateId: string, passwordHash: string): Promise<boolean>;
+  changeCandidatePassword(input: {
+    candidateId: string;
+    expectedPasswordHash: string;
+    newPasswordHash: string;
+    currentSessionId: string;
+    changedAt: Date;
+  }): Promise<boolean>;
   createSession(candidateId: string, tokenHash: string, expiresAt: Date): Promise<string>;
   resolveSession(tokenHash: string, now: Date): Promise<{ sessionId: string; candidateId: string } | undefined>;
   revokeSession(sessionId: string, now: Date): Promise<void>;
@@ -26,10 +34,37 @@ export function createDrizzleCandidateAuthStore(db: PostgresJsDatabase): Candida
         .from(candidates).where(sql`lower(${candidates.email}) = ${email}`).limit(1);
       return candidate;
     },
+    async getCandidatePasswordHash(candidateId) {
+      const [candidate] = await db.select({ passwordHash: candidates.passwordHash })
+        .from(candidates).where(and(eq(candidates.id, candidateId), eq(candidates.isActive, true))).limit(1);
+      return candidate?.passwordHash;
+    },
     async setCandidatePassword(candidateId, passwordHash) {
       const [candidate] = await db.update(candidates).set({ passwordHash, updatedAt: new Date() })
         .where(and(eq(candidates.id, candidateId), eq(candidates.isActive, true))).returning({ id: candidates.id });
       return Boolean(candidate);
+    },
+    async changeCandidatePassword(input) {
+      return db.transaction(async (tx) => {
+        const [updated] = await tx.update(candidates)
+          .set({ passwordHash: input.newPasswordHash, updatedAt: input.changedAt })
+          .where(and(
+            eq(candidates.id, input.candidateId),
+            eq(candidates.isActive, true),
+            eq(candidates.passwordHash, input.expectedPasswordHash),
+          ))
+          .returning({ id: candidates.id });
+        if (!updated) return false;
+
+        await tx.update(candidateSessions)
+          .set({ revokedAt: input.changedAt })
+          .where(and(
+            eq(candidateSessions.candidateId, input.candidateId),
+            ne(candidateSessions.id, input.currentSessionId),
+            isNull(candidateSessions.revokedAt),
+          ));
+        return true;
+      });
     },
     async createSession(candidateId, tokenHash, expiresAt) {
       const [session] = await db.insert(candidateSessions).values({ candidateId, tokenHash, expiresAt }).returning({ id: candidateSessions.id });

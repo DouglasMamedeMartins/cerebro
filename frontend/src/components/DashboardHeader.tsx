@@ -1,4 +1,4 @@
-import { ChevronRight, LogOut, Menu } from 'lucide-react'
+import { ChevronRight, KeyRound, LogOut, Menu } from 'lucide-react'
 import type { DashboardSection } from '../data/dashboard'
 import type { Candidate } from '../services/api'
 
@@ -6,11 +6,12 @@ interface DashboardHeaderProps {
   section: DashboardSection
   candidate: Candidate
   onLogout: () => void
+  onOpenPasswordChange: () => void
   loggingOut: boolean
   onOpenMenu: () => void
 }
 
-export function DashboardHeader({ section, candidate, onLogout, loggingOut, onOpenMenu }: DashboardHeaderProps) {
+export function DashboardHeader({ section, candidate, onLogout, onOpenPasswordChange, loggingOut, onOpenMenu }: DashboardHeaderProps) {
   return (
     <header className="topbar flex items-center">
       <button className="icon-button mobile-menu-button" onClick={onOpenMenu} aria-label="Abrir menu de navegação"><Menu size={19} aria-hidden="true" /></button>
@@ -20,6 +21,9 @@ export function DashboardHeader({ section, candidate, onLogout, loggingOut, onOp
           <div className="avatar" aria-hidden="true">{candidate.name.slice(0, 2).toUpperCase()}</div>
           <div className="profile-copy"><strong>{candidate.name}</strong><span>{candidate.email}</span></div>
         </div>
+        <button className="password-button" onClick={onOpenPasswordChange} aria-label="Alterar senha">
+          <KeyRound size={15} aria-hidden="true" /><span>Alterar senha</span>
+        </button>
         <button className="logout-button" onClick={onLogout} disabled={loggingOut}>
           <LogOut size={15} aria-hidden="true" /><span>{loggingOut ? 'Saindo…' : 'Sair'}</span>
         </button>

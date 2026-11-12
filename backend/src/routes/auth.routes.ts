@@ -16,6 +16,37 @@ export type AuthRouteDependencies = {
 };
 
 export const authRoutes: FastifyPluginAsync<AuthRouteDependencies> = async (app, { store, requireCandidate, production = process.env.NODE_ENV === "production" }) => {
+  app.post("/api/auth/change-password", { preHandler: requireCandidate }, async (request, reply) => {
+    const input = z.object({
+      currentPassword: z.string().max(4096),
+      newPassword: z.string().max(4096),
+    }).strict().safeParse(request.body);
+    if (!input.success) return reply.status(400).send({ error: "INVALID_INPUT" });
+    if (input.data.currentPassword === input.data.newPassword) {
+      return reply.status(400).send({ error: "NEW_PASSWORD_MUST_DIFFER" });
+    }
+
+    const expectedPasswordHash = await store.getCandidatePasswordHash(request.candidateId!);
+    if (!expectedPasswordHash) return reply.status(409).send({ error: "PASSWORD_CHANGE_UNAVAILABLE" });
+    if (!await verifyPassword(input.data.currentPassword, expectedPasswordHash)) {
+      return reply.status(400).send({ error: "CURRENT_PASSWORD_INVALID" });
+    }
+
+    let newPasswordHash: string;
+    try { newPasswordHash = await hashPassword(input.data.newPassword); }
+    catch { return reply.status(400).send({ error: "INVALID_PASSWORD" }); }
+
+    const changed = await store.changeCandidatePassword({
+      candidateId: request.candidateId!,
+      expectedPasswordHash,
+      newPasswordHash,
+      currentSessionId: request.candidateSessionId!,
+      changedAt: new Date(),
+    });
+    if (!changed) return reply.status(409).send({ error: "PASSWORD_CHANGED_CONCURRENTLY" });
+    return reply.status(204).send();
+  });
+
   app.post("/api/admin/candidates/:candidateId/password", { preHandler: requireAdmin }, async (request, reply) => {
     const params = z.object({ candidateId: z.uuid() }).safeParse(request.params);
     const body = z.object({ password: z.string().max(4096) }).safeParse(request.body);

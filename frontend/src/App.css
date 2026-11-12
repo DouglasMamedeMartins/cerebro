@@ -29,6 +29,8 @@
 .breadcrumb strong { color: #c4cede; font-weight: 550; }
 .profile-chip { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border: 1px solid #1d293b; border-radius: 8px; background: #0d1625; }
 .profile-actions { display: flex; align-items: center; gap: 10px; }
+.password-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid #263448; border-radius: 6px; color: #9aabc1; background: #111c2b; font: inherit; font-size: 10px; cursor: pointer; }
+.password-button:hover { border-color: #3b536d; color: #e9eff9; }
 .logout-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid #263448; border-radius: 6px; color: #9aabc1; background: #111c2b; font: inherit; font-size: 10px; cursor: pointer; }
 .logout-button:hover:not(:disabled) { border-color: #3b536d; color: #e9eff9; }
 .logout-button:disabled { opacity: .65; cursor: wait; }
@@ -421,6 +423,13 @@
 .loading-spinner { width: 18px; height: 18px; border: 2px solid #294252; border-top-color: #58dfee; border-radius: 50%; animation: auth-spin .8s linear infinite; }
 .auth-session-error h1 { margin-top: 0; }
 .auth-session-error .auth-submit { width: 100%; margin-top: 22px; }
+.password-dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(3, 8, 16, .78); backdrop-filter: blur(5px); }
+.password-dialog { position: relative; width: min(100%, 430px); }
+.password-dialog h1 { margin-bottom: 9px; }
+.password-dialog-close { position: absolute; top: 13px; right: 14px; display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid #26364b; border-radius: 6px; color: #9aabc1; background: #111c2b; font-size: 23px; line-height: 1; cursor: pointer; }
+.password-dialog-close:hover:not(:disabled) { color: #e9eff9; border-color: #3b536d; }
+.password-dialog-close:disabled { opacity: .65; cursor: wait; }
+.password-dialog-submit { width: 100%; }
 @keyframes auth-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 1000px) {
@@ -448,6 +457,8 @@
   .profile-actions { gap: 5px; margin-left: auto; }
   .logout-button { padding: 7px; }
   .logout-button span { display: none; }
+  .password-button { padding: 7px; }
+  .password-button span { display: none; }
   .profile-chip { gap: 6px; }
   .profile-copy { max-width: 105px; overflow: hidden; }
   .profile-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -638,6 +649,7 @@ button:not(:disabled):active { transform: scale(.98); }
   .topbar { gap: 9px; }
   .profile-actions { gap: 6px; }
   .logout-button { position: relative; width: 44px; min-width: 44px; justify-content: center; padding: 0; }
+  .password-button { position: relative; width: 44px; min-width: 44px; justify-content: center; padding: 0; }
   .logout-button span {
     display: inline;
     position: absolute;

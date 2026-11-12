@@ -589,6 +589,13 @@ export const authApi = {
   logout(): Promise<void> {
     return request<void>('/api/auth/logout', { method: 'POST' })
   },
+
+  changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    return request<void>('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+  },
 }
 
 export const candidateApi = {

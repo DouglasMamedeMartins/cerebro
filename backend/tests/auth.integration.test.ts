@@ -50,10 +50,22 @@ class MemoryAuthStore implements CandidateAuthStore {
   private nextSession = 0;
 
   async findCandidateByEmail(email: string) { return [...this.candidates.values()].find((item) => item.email.toLowerCase() === email); }
+  async getCandidatePasswordHash(candidateId: string) { return this.candidates.get(candidateId)?.passwordHash; }
   async setCandidatePassword(candidateId: string, encoded: string) {
     const item = this.candidates.get(candidateId);
     if (!item?.isActive) return false;
     item.passwordHash = encoded;
+    return true;
+  }
+  async changeCandidatePassword(input: { candidateId: string; expectedPasswordHash: string; newPasswordHash: string; currentSessionId: string; changedAt: Date }) {
+    const item = this.candidates.get(input.candidateId);
+    if (!item?.isActive || item.passwordHash !== input.expectedPasswordHash) return false;
+    item.passwordHash = input.newPasswordHash;
+    for (const session of this.sessions.values()) {
+      if (session.candidateId === input.candidateId && session.id !== input.currentSessionId && !session.revokedAt) {
+        session.revokedAt = input.changedAt;
+      }
+    }
     return true;
   }
   async createSession(candidateId: string, tokenHash: string, expiresAt: Date) {
