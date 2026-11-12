@@ -15,6 +15,7 @@ import { StudyPlanPage } from './components/StudyPlanPage'
 import { StudyProgress } from './components/StudyProgress'
 import type { DashboardSection } from './data/dashboard'
 import { useDailyStudyPlan } from './hooks/useDailyStudyPlan'
+import { useStudySessionRegistration } from './hooks/useStudySessionRegistration'
 import { ApiError, authApi, type Candidate } from './services/api'
 import './App.css'
 
@@ -26,7 +27,9 @@ function App() {
   const [activeSection, setActiveSection] = useState<DashboardSection>('Visão geral')
   const [menuOpen, setMenuOpen] = useState(false)
   const [notice, setNotice] = useState('')
+  const [studyHistoryRefreshKey, setStudyHistoryRefreshKey] = useState(0)
   const dailyStudyPlan = useDailyStudyPlan(candidate?.id)
+  const studySessionRegistration = useStudySessionRegistration(candidate?.id, () => { setStudyHistoryRefreshKey((key) => key + 1); dailyStudyPlan.refresh() })
 
   async function checkSession() {
     setSessionStatus('checking')
@@ -106,13 +109,13 @@ function App() {
             <NextBestAction candidateId={candidate.id} />
           </div>
           <div className="lower-grid grid">
-            <StudyPlan plan={dailyStudyPlan} onViewPlan={() => chooseSection('Plano de estudos')} />
+            <StudyPlan plan={dailyStudyPlan} candidateId={candidate.id} registration={studySessionRegistration} onViewPlan={() => chooseSection('Plano de estudos')} />
             <PriorityReviews candidateId={candidate.id} onViewReviews={() => chooseSection('Revisões')} />
           </div>
-          <StudyHistory />
+          <StudyHistory refreshKey={studyHistoryRefreshKey} />
           <footer className="page-footer flex items-center justify-between"><span><span className="footer-mark">C</span> PMDF CÉREBRO</span><span>Indicadores conectados usam dados reais da conta; sequência diária indisponível. Outras áreas são demonstrativas.</span><span>Preparação com propósito <Sparkles size={14} aria-hidden="true" /></span></footer>
         </div> : <div className="page-content">
-          {activeSection === 'Plano de estudos' && <StudyPlanPage plan={dailyStudyPlan} />}
+          {activeSection === 'Plano de estudos' && <StudyPlanPage plan={dailyStudyPlan} candidateId={candidate.id} registration={studySessionRegistration} />}
           {activeSection === 'Questões' && <QuestionsPage />}
           {activeSection === 'Revisões' && <ReviewsPage />}
           {activeSection === 'Desempenho' && <PerformancePage />}

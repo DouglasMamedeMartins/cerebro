@@ -19,6 +19,7 @@ type HistorySession = {
   studiedAt: Date;
   localStudyDate: string;
   durationMinutes: number;
+  studyPlanItemId: string | null;
   topicId: string;
   topicName: string | null;
   subjectName: string | null;
@@ -29,6 +30,7 @@ const sessionA: HistorySession = {
   studiedAt: new Date("2026-06-02T02:30:00.000Z"),
   localStudyDate: "2026-06-01",
   durationMinutes: 35,
+  studyPlanItemId: null,
   topicId: "33333333-3333-4333-8333-333333333333",
   topicName: "Direitos fundamentais",
   subjectName: "Direito Constitucional",
@@ -58,7 +60,7 @@ function createTestApp() {
   void app.register(cookie);
   installApiAuthGuards(app, createRequireCandidate(store), []);
   void app.register(studyRoutes, {
-    createStudySession: async () => ({}),
+    createStudySession: async () => ({ session: {}, replayed: false }),
     getStudyCandidate: async (candidateId) => ({ id: candidateId, isActive: true }),
     getTopicCoverage: async () => ({}),
     getStudySessionHistory: async (candidateId, filters) => {

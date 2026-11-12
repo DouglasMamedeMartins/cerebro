@@ -12,7 +12,10 @@ import type {
 import type { StudyStreak } from "../services/study-streak.service.js";
 
 export type StudyRouteDependencies = {
-  createStudySession: (data: CreateStudySessionInput) => Promise<unknown>;
+  createStudySession: (
+    data: CreateStudySessionInput,
+    idempotencyKey?: string,
+  ) => Promise<{ session: unknown; replayed: boolean }>;
   getStudyCandidate: (
     candidateId: string,
   ) => Promise<{ id: string; isActive: boolean } | undefined>;
@@ -77,18 +80,28 @@ export const studyRoutes: FastifyPluginAsync<StudyRouteDependencies> = async (
 
   app.post("/api/study-sessions", async (request, reply) => {
     const result = createStudySessionSchema.safeParse(request.body);
+    const idempotencyKey = z.uuid().optional().safeParse(request.headers["idempotency-key"]);
 
-    if (!result.success) {
+    if (!result.success || !idempotencyKey.success) {
       return reply.status(400).send({
         error: "INVALID_INPUT",
-        details: result.error.flatten(),
+        details: {
+          body: result.success ? null : result.error.flatten(),
+          idempotencyKey: idempotencyKey.success ? null : idempotencyKey.error.flatten(),
+        },
       });
     }
 
-    let session: unknown;
+    let created: { session: unknown; replayed: boolean };
 
     try {
-      session = await createStudySession(result.data);
+      created = await createStudySession(
+        {
+          ...result.data,
+          candidateId: request.candidateId!,
+        },
+        idempotencyKey.data,
+      );
     } catch (error) {
       if (error instanceof Error && error.message === "CANDIDATE_NOT_FOUND") {
         return reply.status(404).send({ error: "CANDIDATE_NOT_FOUND" });
@@ -98,10 +111,22 @@ export const studyRoutes: FastifyPluginAsync<StudyRouteDependencies> = async (
         return reply.status(403).send({ error: "CANDIDATE_INACTIVE" });
       }
 
+      if (error instanceof Error && error.message === "STUDY_PLAN_ITEM_NOT_FOUND") {
+        return reply.status(404).send({ error: "STUDY_PLAN_ITEM_NOT_FOUND" });
+      }
+
+      if (error instanceof Error && error.message === "STUDY_PLAN_ITEM_TOPIC_MISMATCH") {
+        return reply.status(400).send({ error: "STUDY_PLAN_ITEM_TOPIC_MISMATCH" });
+      }
+
+      if (error instanceof Error && error.message === "STUDY_SESSION_IDEMPOTENCY_CONFLICT") {
+        return reply.status(409).send({ error: "STUDY_SESSION_IDEMPOTENCY_CONFLICT" });
+      }
+
       throw error;
     }
 
-    return reply.status(201).send(session);
+    return reply.status(created.replayed ? 200 : 201).send(created.session);
   });
 
   app.get(

@@ -103,7 +103,7 @@ function createTestApp() {
   void app.register(cookie);
   installApiAuthGuards(app, createRequireCandidate(store), []);
   void app.register(studyRoutes, {
-    createStudySession: async () => ({}),
+    createStudySession: async () => ({ session: {}, replayed: false }),
     getStudyCandidate: async (candidateId) => ({ id: candidateId, isActive: true }),
     getTopicCoverage: async () => ({}),
     getStudySessionHistory: async (_candidateId, filters) => ({

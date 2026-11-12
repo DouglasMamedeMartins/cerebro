@@ -90,7 +90,7 @@ async function makeApp(store = new MemoryAuthStore(), production = true) {
   app.get("/health", async () => ({ status: "ok" }));
   app.get("/api/private/:candidateId", async (request) => ({ candidateId: request.candidateId }));
   await app.register(studyRoutes, {
-    createStudySession: async (data) => data,
+    createStudySession: async (data) => ({ session: data, replayed: false }),
     getStudySessionHistory: async (_candidateId, filters) => ({
       sessions: [],
       pagination: { page: filters.page, limit: filters.limit, total: 0, totalPages: 0 },

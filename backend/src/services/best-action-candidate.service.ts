@@ -106,31 +106,31 @@ export async function getCandidateBestAction(
     return null;
   }
 
-  const action = decideAction(winner);
+  return buildCandidateAction(winner);
+}
+
+/** Reuses the same adaptive decision rules for an already-ranked topic. */
+export function buildCandidateAction(
+  topic: CandidateBestActionTopic,
+): CandidateBestAction {
+  const action = decideAction(topic);
 
   return {
-    topicId: winner.topicId,
-    topicName: winner.topicName,
-    subjectName: winner.subjectName,
-
+    topicId: topic.topicId,
+    topicName: topic.topicName,
+    subjectName: topic.subjectName,
     type: action.type,
     durationMinutes: action.durationMinutes,
-
-    priorityScore: winner.priorityScore,
-    priorityLevel: winner.priorityLevel,
-
-    mastery: winner.mastery,
-    masteryStatus: winner.masteryStatus,
-
-    reliability: winner.reliability,
-    trend: winner.trend,
-
+    priorityScore: topic.priorityScore,
+    priorityLevel: topic.priorityLevel,
+    mastery: topic.mastery,
+    masteryStatus: topic.masteryStatus,
+    reliability: topic.reliability,
+    trend: topic.trend,
     reason: action.reason,
-
-    explanation: buildExplanation(winner, action.type, action.reason),
-
+    explanation: buildExplanation(topic, action.type, action.reason),
     expectedImpact: buildExpectedImpact(action.type),
-    evaluationStatus: winner.evaluationStatus,
+    evaluationStatus: topic.evaluationStatus,
   };
 }
 

@@ -1,5 +1,5 @@
 import { AlertCircle, BookOpen, Clock3, History } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { candidateApi, type StudySessionHistoryItem, type StudySessionHistoryPage } from '../services/api'
 
 type HistoryState =
@@ -20,19 +20,22 @@ function formatStudyDate(localStudyDate: string): string {
   return `${day}/${month}/${year}`
 }
 
-export function StudyHistory() {
+export function StudyHistory({ refreshKey = 0 }: { refreshKey?: number }) {
   const [state, setState] = useState<HistoryState>({ status: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
+  const loadedPageCount = useRef(1)
 
   useEffect(() => {
     let active = true
     setState({ status: 'loading' })
-    void candidateApi.getStudySessionHistory(1, PAGE_SIZE)
-      .then((result) => {
+    const pageCount = Math.max(1, loadedPageCount.current)
+    void Promise.all(Array.from({ length: pageCount }, (_, index) => candidateApi.getStudySessionHistory(index + 1, PAGE_SIZE)))
+      .then((pages) => {
         if (active) {
+          const result = pages[pages.length - 1]
           setState({
             status: 'loaded',
-            sessions: result.sessions,
+            sessions: pages.flatMap((page) => page.sessions),
             pagination: result.pagination,
             loadingMore: false,
             loadMoreError: false,
@@ -44,7 +47,7 @@ export function StudyHistory() {
       })
 
     return () => { active = false }
-  }, [retryKey])
+  }, [retryKey, refreshKey])
 
   async function loadMore() {
     if (state.status !== 'loaded' || state.loadingMore) return
@@ -52,6 +55,7 @@ export function StudyHistory() {
     setState({ ...state, loadingMore: true, loadMoreError: false })
     try {
       const result = await candidateApi.getStudySessionHistory(nextPage, PAGE_SIZE)
+      loadedPageCount.current = nextPage
       setState((current) => current.status === 'loaded' ? {
         status: 'loaded',
         sessions: [...current.sessions, ...result.sessions],

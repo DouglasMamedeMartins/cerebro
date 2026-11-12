@@ -18,7 +18,7 @@ async function createTestApp(
 ) {
   const app = Fastify();
   const createStudySession: StudyRouteDependencies["createStudySession"] = async () =>
-    undefined;
+    ({ session: {}, replayed: false });
   const getStudyCandidate: StudyRouteDependencies["getStudyCandidate"] = async (
     requestedCandidateId,
   ) => (candidate ? { ...candidate, id: requestedCandidateId } : undefined);

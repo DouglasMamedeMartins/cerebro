@@ -76,9 +76,26 @@ export interface StudySessionHistoryItem {
   studiedAt: string
   localStudyDate: string
   durationMinutes: number
+  studyPlanItemId: string | null
   topicId: string
   topicName: string | null
   subjectName: string | null
+}
+
+export interface CreateStudySessionPayload {
+  candidateId: string
+  topicId: string
+  durationMinutes: number
+  studyPlanItemId: string
+}
+
+export interface CreatedStudySession {
+  id: string
+  candidateId: string
+  topicId: string
+  durationMinutes: number
+  studiedAt: string
+  studyPlanItemId: string | null
 }
 
 export interface StudySessionHistoryPage {
@@ -89,6 +106,67 @@ export interface StudySessionHistoryPage {
     total: number
     totalPages: number
   }
+}
+
+export type DailyPlanExecutionStatus = 'not_started' | 'in_progress' | 'completed' | 'ignored' | 'replaced'
+export type DailyPlanEventType = 'completed' | 'ignored' | 'replaced' | 'manual_change'
+
+export interface DailyPlanItemEvent {
+  id: string
+  eventType: DailyPlanEventType
+  occurredAt: string
+  data: Record<string, unknown> | null
+}
+
+export interface DailyPlanItemExecution {
+  executedMinutes: number
+  sessionCount: number
+  recommendedTimePercent: number
+  status: DailyPlanExecutionStatus
+  lastSessionAt: string | null
+  events: DailyPlanItemEvent[]
+}
+
+export type DailyPlanDecision = 'completed' | 'ignored' | 'replaced'
+
+export interface DailyPlanDecisionResponse extends DailyPlanItemEvent {
+  planId: string
+  planItemId: string
+}
+
+export interface DailyStudyPlanItemSnapshot {
+  id: string
+  presentationOrder: number
+  rankingPosition: number | null
+  topicId: string
+  topicName: string
+  subjectName: string
+  activityType: CandidateBestAction['type']
+  recommendedDurationMinutes: number
+  priorityLevel: CandidateBestAction['priorityLevel']
+  priorityScore: number
+  reason: string[]
+  explanation: string
+  expectedImpact: string
+  recommendationSource: 'best_action' | 'additional_topic'
+  execution?: DailyPlanItemExecution
+}
+
+export interface DailyStudyPlanSnapshot {
+  plan: {
+    id: string
+    planDate: string
+    timeZone: string
+    availableMinutes: number
+    version: number
+    generatedAt: string
+  }
+  items: DailyStudyPlanItemSnapshot[]
+}
+
+export interface DailyStudyPlanCurrentResponse {
+  plan: DailyStudyPlanSnapshot['plan'] | null
+  items: DailyStudyPlanItemSnapshot[]
 }
 
 export interface CandidatePriorityTopic {
@@ -126,7 +204,7 @@ export class ApiError extends Error {
   }
 }
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '')
+const baseUrl = import.meta.env?.VITE_API_BASE_URL?.trim().replace(/\/+$/, '')
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!baseUrl) {
@@ -349,6 +427,7 @@ function parseStudySessionHistory(value: unknown): StudySessionHistoryPage {
       typeof item.studiedAt === 'string' &&
       typeof item.localStudyDate === 'string' &&
       typeof item.durationMinutes === 'number' && Number.isFinite(item.durationMinutes) && item.durationMinutes >= 0 &&
+      (item.studyPlanItemId === null || typeof item.studyPlanItemId === 'string') &&
       typeof item.topicId === 'string' &&
       (item.topicName === null || typeof item.topicName === 'string') &&
       (item.subjectName === null || typeof item.subjectName === 'string')
@@ -359,6 +438,107 @@ function parseStudySessionHistory(value: unknown): StudySessionHistoryPage {
   }
 
   return { sessions, pagination: pagination as StudySessionHistoryPage['pagination'] }
+}
+
+function parseCreatedStudySession(value: unknown): CreatedStudySession {
+  if (typeof value !== 'object' || value === null) {
+    throw new ApiError('A API retornou a sessÃ£o em formato invÃ¡lido.', undefined, 'response')
+  }
+
+  const session = value as Record<string, unknown>
+  if (
+    typeof session.id !== 'string' || typeof session.candidateId !== 'string' ||
+    typeof session.topicId !== 'string' || typeof session.durationMinutes !== 'number' ||
+    !Number.isInteger(session.durationMinutes) || session.durationMinutes <= 0 ||
+    typeof session.studiedAt !== 'string' ||
+    !(session.studyPlanItemId === null || typeof session.studyPlanItemId === 'string')
+  ) {
+    throw new ApiError('A API retornou a sessÃ£o em formato invÃ¡lido.', undefined, 'response')
+  }
+
+  return {
+    id: session.id,
+    candidateId: session.candidateId,
+    topicId: session.topicId,
+    durationMinutes: session.durationMinutes,
+    studiedAt: session.studiedAt,
+    studyPlanItemId: session.studyPlanItemId,
+  }
+}
+
+function parseDailyStudyPlan(value: unknown): DailyStudyPlanCurrentResponse {
+  if (typeof value !== 'object' || value === null) {
+    throw new ApiError('A API retornou o plano em formato inválido.', undefined, 'response')
+  }
+
+  const result = value as Record<string, unknown>
+  if (!Array.isArray(result.items)) {
+    throw new ApiError('A API retornou o plano em formato inválido.', undefined, 'response')
+  }
+
+  const plan = result.plan
+  let parsedPlan: DailyStudyPlanSnapshot['plan'] | null = null
+  if (plan !== null) {
+    if (typeof plan !== 'object' || plan === null) {
+      throw new ApiError('A API retornou o plano em formato inválido.', undefined, 'response')
+    }
+    const entry = plan as Record<string, unknown>
+    if (
+      typeof entry.id !== 'string' || typeof entry.planDate !== 'string' ||
+      typeof entry.timeZone !== 'string' || !Number.isInteger(entry.availableMinutes) ||
+      !Number.isInteger(entry.version) || typeof entry.generatedAt !== 'string'
+    ) {
+      throw new ApiError('A API retornou o plano em formato inválido.', undefined, 'response')
+    }
+    parsedPlan = {
+      id: entry.id,
+      planDate: entry.planDate,
+      timeZone: entry.timeZone,
+      availableMinutes: entry.availableMinutes as number,
+      version: entry.version as number,
+      generatedAt: entry.generatedAt,
+    }
+  }
+
+  const parsedItems = result.items.map((item): DailyStudyPlanItemSnapshot => {
+    if (typeof item !== 'object' || item === null) {
+      throw new ApiError('A API retornou um item do plano em formato inválido.', undefined, 'response')
+    }
+    const entry = item as Record<string, unknown>
+    if (
+      typeof entry.id !== 'string' || !Number.isInteger(entry.presentationOrder) ||
+      !(entry.rankingPosition === null || Number.isInteger(entry.rankingPosition)) ||
+      typeof entry.topicId !== 'string' || typeof entry.topicName !== 'string' ||
+      typeof entry.subjectName !== 'string' || !isOneOf(entry.activityType, actionTypes) ||
+      !Number.isInteger(entry.recommendedDurationMinutes) ||
+      !isOneOf(entry.priorityLevel, priorityLevels) ||
+      typeof entry.priorityScore !== 'number' || !Number.isFinite(entry.priorityScore) ||
+      !Array.isArray(entry.reason) || !entry.reason.every((reason) => typeof reason === 'string') ||
+      typeof entry.explanation !== 'string' || typeof entry.expectedImpact !== 'string' ||
+      !isOneOf(entry.recommendationSource, ['best_action', 'additional_topic'] as const)
+    ) {
+      throw new ApiError('A API retornou um item do plano em formato inválido.', undefined, 'response')
+    }
+    if ('execution' in entry) {
+      const execution = entry.execution as Record<string, unknown> | null
+      const statuses = ['not_started', 'in_progress', 'completed', 'ignored', 'replaced']
+      const eventTypes = ['completed', 'ignored', 'replaced', 'manual_change']
+      if (!execution || typeof execution !== 'object' ||
+        typeof execution.executedMinutes !== 'number' || !Number.isFinite(execution.executedMinutes) || execution.executedMinutes < 0 ||
+        typeof execution.sessionCount !== 'number' || !Number.isInteger(execution.sessionCount) || execution.sessionCount < 0 ||
+        typeof execution.recommendedTimePercent !== 'number' || !Number.isFinite(execution.recommendedTimePercent) || execution.recommendedTimePercent < 0 ||
+        !isOneOf(execution.status, statuses) ||
+        !(execution.lastSessionAt === null || typeof execution.lastSessionAt === 'string') || !Array.isArray(execution.events) ||
+        !execution.events.every((event) => typeof event === 'object' && event !== null &&
+          typeof event.id === 'string' && isOneOf(event.eventType, eventTypes) && typeof event.occurredAt === 'string' &&
+          (event.data === null || (typeof event.data === 'object' && !Array.isArray(event.data))))) {
+        throw new ApiError('A API retornou a execuÃ§Ã£o do item em formato invÃ¡lido.', undefined, 'response')
+      }
+    }
+    return entry as unknown as DailyStudyPlanItemSnapshot
+  })
+
+  return { plan: parsedPlan, items: parsedItems }
 }
 
 function parseCandidatePriorityTopics(value: unknown): CandidatePriorityTopic[] {
@@ -412,6 +592,25 @@ export const authApi = {
 }
 
 export const candidateApi = {
+  async createStudySession(
+    payload: CreateStudySessionPayload,
+    idempotencyKey: string,
+  ): Promise<CreatedStudySession> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
+    try {
+      const session = await request<unknown>('/api/study-sessions', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+      return parseCreatedStudySession(session)
+    } finally {
+      clearTimeout(timeout)
+    }
+  },
+
   async getStudySessionHistory(page = 1, limit = 5): Promise<StudySessionHistoryPage> {
     const query = new URLSearchParams({ page: String(page), limit: String(limit) })
     return parseStudySessionHistory(await request<unknown>(`/api/study-sessions/history?${query}`))
@@ -450,5 +649,51 @@ export const candidateApi = {
   async getBestActionForTopic(candidateId: string, topicId: string): Promise<CandidateTopicAction> {
     const result = await request<unknown>(`/api/candidates/${encodeURIComponent(candidateId)}/best-action/${encodeURIComponent(topicId)}`)
     return parseCandidateTopicAction(result)
+  },
+}
+
+export const studyPlanApi = {
+  async getCurrent(): Promise<DailyStudyPlanCurrentResponse> {
+    return parseDailyStudyPlan(await request<unknown>('/api/study-plans/current'))
+  },
+
+  async generate(availableMinutes: number, idempotencyKey: string): Promise<DailyStudyPlanSnapshot> {
+    const result = parseDailyStudyPlan(await request<unknown>('/api/study-plans/generate', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ availableMinutes }),
+    }))
+    if (!result.plan) {
+      throw new ApiError('A API não retornou o plano gerado.', undefined, 'response')
+    }
+    return this.getDetails(result.plan.id)
+  },
+
+  async getDetails(planId: string): Promise<DailyStudyPlanSnapshot> {
+    const result = parseDailyStudyPlan(await request<unknown>(`/api/study-plans/${encodeURIComponent(planId)}`))
+    if (!result.plan) {
+      throw new ApiError('A API não retornou os detalhes do plano.', undefined, 'response')
+    }
+    return { plan: result.plan, items: result.items }
+  },
+
+  async recordDecision(planId: string, itemId: string, decision: DailyPlanDecision, idempotencyKey: string, replacementTopicId?: string): Promise<DailyPlanDecisionResponse> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
+    try {
+      const path = `/api/study-plans/${encodeURIComponent(planId)}/items/${encodeURIComponent(itemId)}/${decision === 'completed' ? 'complete' : decision === 'ignored' ? 'ignore' : 'replace'}`
+      const result = await request<unknown>(path, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        ...(decision === 'replaced' ? { body: JSON.stringify({ replacementTopicId }) } : {}),
+        signal: controller.signal,
+      })
+      if (typeof result !== 'object' || result === null) throw new ApiError('Resposta do evento invÃ¡lida.', undefined, 'response')
+      const event = result as Record<string, unknown>
+      if (typeof event.id !== 'string' || event.eventType !== decision || typeof event.planId !== 'string' || typeof event.planItemId !== 'string' || typeof event.occurredAt !== 'string') {
+        throw new ApiError('Resposta do evento invÃ¡lida.', undefined, 'response')
+      }
+      return event as unknown as DailyPlanDecisionResponse
+    } finally { clearTimeout(timeout) }
   },
 }

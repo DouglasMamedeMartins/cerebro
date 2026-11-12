@@ -31,6 +31,7 @@ import {
   getTopicWeightPriority,
 } from "./services/priority.service.js";
 import {
+  buildCandidateAction,
   getCandidateBestAction,
   getCandidateBestActionTopics,
 } from "./services/best-action-candidate.service.js";
@@ -39,6 +40,14 @@ import {
   getStudySessionHistory,
   getStudyCandidate,
 } from "./services/study-session.service.js";
+import { createDailyStudyPlanGenerator } from "./services/daily-study-plan.service.js";
+import { recordDailyPlanItemDecision } from "./services/daily-plan-item-event.service.js";
+import {
+  dailyStudyPlanStore,
+  getCurrentDailyStudyPlan,
+  listDailyStudyPlans,
+  getDailyStudyPlanDetails,
+} from "./services/daily-study-plan.store.js";
 import { candidateRoutes } from "./routes/candidate.routes.js";
 import { editalRoutes } from "./routes/edital.routes.js";
 import { subjectRoutes } from "./routes/subject.routes.js";
@@ -53,6 +62,7 @@ import { studyRoutes } from "./routes/study.routes.js";
 import { bestActionRoutes } from "./routes/best-action.routes.js";
 import { candidateTopicRoutes } from "./routes/candidate-topic.routes.js";
 import { candidateBestActionRoutes } from "./routes/candidate-best-action.routes.js";
+import { studyPlanRoutes } from "./routes/study-plan.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { createRequireCandidate } from "./middleware/candidate-auth.js";
 import { installApiAuthGuards } from "./middleware/api-auth-guards.js";
@@ -122,6 +132,17 @@ await app.register(studyRoutes, {
   getStudyStreak: getCandidateStudyStreak,
   getStudyCandidate,
   getTopicCoverage,
+});
+await app.register(studyPlanRoutes, {
+  generateDailyStudyPlan: createDailyStudyPlanGenerator(dailyStudyPlanStore, {
+    getBestAction: getCandidateBestAction,
+    getRankedTopics: getCandidateBestActionTopics,
+    getTopicAction: buildCandidateAction,
+  }),
+  getCurrentPlan: getCurrentDailyStudyPlan,
+  listPlans: listDailyStudyPlans,
+  getPlanDetails: getDailyStudyPlanDetails,
+  recordItemDecision: recordDailyPlanItemDecision,
 });
 await app.register(bestActionRoutes);
 await app.register(candidateTopicRoutes);
