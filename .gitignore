@@ -40,5 +40,31 @@ test-results/
 *.tmp
 *.temp
 
+# Database backups and exports (regular SQL migrations remain trackable)
+*.dump
+*.backup
+*.bak
+*.sql.gz
+*.dump.*
+*.backup.*
+*.bak.*
+*.dump-*
+*.backup-*
+*.bak-*
+*.sql.backup*
+*.sql.bak*
+*backup*.dump*
+*backup*.sql*
+*backup*.zip
+*backup*.tar
+*backup*.tar.gz
+*backup*.7z
+*export*.dump*
+*export*.sql*
+*export*.zip
+*export*.tar
+*export*.tar.gz
+*export*.7z
+
 # TypeScript
 *.tsbuildinfo

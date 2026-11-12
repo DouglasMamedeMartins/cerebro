@@ -122,8 +122,29 @@
 .activity-meta { display: grid; flex: 0 0 auto; gap: 4px; margin-left: auto; color: #91a0b4; text-align: right; font-size: 9px; }
 .activity-meta > span { display: inline-flex; align-items: center; justify-content: end; gap: 4px; }
 .activity-meta small { color: #697a90; font-size: 8px; }.activity-meta .state-next { color: #5cd4dc; }
+.history-state { display: flex; min-height: 52px; align-items: center; justify-content: center; gap: 9px; color: #8290a5; font-size: 10px; }
+.history-error { color: #e5a08c; }
+.history-pagination, .history-more-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; color: #75869c; font-size: 9px; }
+.history-more-error { justify-content: flex-start; color: #e5a08c; }
+.history-pagination button:disabled { cursor: wait; opacity: .65; }
 .schedule-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 13px; color: #75869c; font-size: 9px; }
 .schedule-footer strong { margin-left: 5px; color: #c6d2e2; font-weight: 550; }
+.plan-availability { display: grid; min-width: 145px; gap: 5px; color: #8b9bb0; font-size: 9px; }
+.plan-availability-input { display: flex; width: fit-content; align-items: center; gap: 7px; }
+.plan-availability-input input { width: 78px; padding: 6px 7px; border: 1px solid #2a3a4f; border-radius: 5px; outline: none; color: #e3edf8; background: #101b2b; font: inherit; font-size: 10px; }
+.plan-availability-input input:focus { border-color: #4ab8c6; }
+.plan-availability-input small { color: #718198; font-size: 9px; }
+.plan-availability-card { align-items: flex-start; }
+.plan-availability-card p { margin: 8px 0 0; color: #718198; font-size: 8px; line-height: 1.4; }
+.plan-message { display: flex; min-height: 75px; align-items: center; justify-content: center; gap: 9px; color: #8999ae; font-size: 10px; }
+.plan-message-error { flex-wrap: wrap; color: #e5a08c; }
+.plan-limit-message { margin: 10px 0 0; color: #d8b97a; font-size: 9px; line-height: 1.55; }
+.daily-plan-disclaimer { margin: 13px 0 0; color: #718198; font-size: 8px; line-height: 1.5; }
+.daily-plan-explanation, .daily-plan-impact { margin: 3px 0 0; color: #8392a7; font-size: 9px; line-height: 1.5; white-space: normal; }
+.daily-plan-impact { color: #6c9da7; }
+.daily-plan-row { min-height: 0; padding: 14px 0; }
+.daily-plan-row .plan-activity-content > strong { white-space: normal; }
+.plan-spinner { width: 17px; height: 17px; border: 2px solid #294252; border-top-color: #58dfee; border-radius: 50%; animation: auth-spin .8s linear infinite; }
 .text-action { padding: 5px 0; font-size: 9px; white-space: nowrap; }
 .review-count { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid #3b334f; border-radius: 6px; color: #baa8f2; background: #211d32; font-size: 9px; font-weight: 700; }
 .review-list { display: grid; }

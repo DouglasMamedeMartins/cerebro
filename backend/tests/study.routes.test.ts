@@ -32,6 +32,8 @@ function createTestApp(
   return app
     .register(studyRoutes, {
       createStudySession,
+      getStudySessionHistory: async () => ({ sessions: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } }),
+      getStudyStreak: async () => ({ currentStreak: 0, longestStreak: 0, totalStudyDays: 0, lastStudyDate: null, asOfDate: "2026-11-12" }),
       getStudyCandidate,
       getTopicCoverage,
     })

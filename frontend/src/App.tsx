@@ -9,10 +9,12 @@ import { PerformancePage } from './components/PerformancePage'
 import { QuestionsPage } from './components/QuestionsPage'
 import { ReviewsPage } from './components/ReviewsPage'
 import { Sidebar } from './components/Sidebar'
+import { StudyHistory } from './components/StudyHistory'
 import { StudyPlan } from './components/StudyPlan'
 import { StudyPlanPage } from './components/StudyPlanPage'
 import { StudyProgress } from './components/StudyProgress'
 import type { DashboardSection } from './data/dashboard'
+import { useDailyStudyPlan } from './hooks/useDailyStudyPlan'
 import { ApiError, authApi, type Candidate } from './services/api'
 import './App.css'
 
@@ -24,6 +26,7 @@ function App() {
   const [activeSection, setActiveSection] = useState<DashboardSection>('Visão geral')
   const [menuOpen, setMenuOpen] = useState(false)
   const [notice, setNotice] = useState('')
+  const dailyStudyPlan = useDailyStudyPlan(candidate?.id)
 
   async function checkSession() {
     setSessionStatus('checking')
@@ -97,22 +100,23 @@ function App() {
             <div className="date-label"><span className="status-pulse" /> Painel demonstrativo</div>
           </section>
           {notice && <div className="inline-notice" role="status">{notice}</div>}
-          <MetricCards />
+          <MetricCards candidateId={candidate.id} />
           <div className="overview-grid grid">
-            <StudyProgress onViewPerformance={() => chooseSection('Desempenho')} />
-            <NextBestAction onAction={() => setNotice('Esta recomendação é demonstrativa. A ação adaptativa ainda não está conectada.')} />
+            <StudyProgress candidateId={candidate.id} onViewPerformance={() => chooseSection('Desempenho')} />
+            <NextBestAction candidateId={candidate.id} />
           </div>
           <div className="lower-grid grid">
-            <StudyPlan onViewPlan={() => chooseSection('Plano de estudos')} />
-            <PriorityReviews onViewReviews={() => chooseSection('Revisões')} />
+            <StudyPlan plan={dailyStudyPlan} onViewPlan={() => chooseSection('Plano de estudos')} />
+            <PriorityReviews candidateId={candidate.id} onViewReviews={() => chooseSection('Revisões')} />
           </div>
-          <footer className="page-footer flex items-center justify-between"><span><span className="footer-mark">C</span> PMDF CÉREBRO</span><span>Interface demonstrativa · Os dados exibidos são fictícios.</span><span>Preparação com propósito <Sparkles size={14} aria-hidden="true" /></span></footer>
+          <StudyHistory />
+          <footer className="page-footer flex items-center justify-between"><span><span className="footer-mark">C</span> PMDF CÉREBRO</span><span>Indicadores conectados usam dados reais da conta; sequência diária indisponível. Outras áreas são demonstrativas.</span><span>Preparação com propósito <Sparkles size={14} aria-hidden="true" /></span></footer>
         </div> : <div className="page-content">
-          {activeSection === 'Plano de estudos' && <StudyPlanPage />}
+          {activeSection === 'Plano de estudos' && <StudyPlanPage plan={dailyStudyPlan} />}
           {activeSection === 'Questões' && <QuestionsPage />}
           {activeSection === 'Revisões' && <ReviewsPage />}
           {activeSection === 'Desempenho' && <PerformancePage />}
-          <footer className="page-footer flex items-center justify-between"><span><span className="footer-mark">C</span> PMDF CÉREBRO</span><span>Interface demonstrativa · Os dados exibidos são fictícios.</span><span>Preparação com propósito <Sparkles size={14} aria-hidden="true" /></span></footer>
+          <footer className="page-footer flex items-center justify-between"><span><span className="footer-mark">C</span> PMDF CÉREBRO</span><span>Indicadores conectados usam dados reais da conta; sequência diária indisponível. Outras áreas são demonstrativas.</span><span>Preparação com propósito <Sparkles size={14} aria-hidden="true" /></span></footer>
         </div>}
       </main>
     </div>

@@ -91,6 +91,17 @@ async function makeApp(store = new MemoryAuthStore(), production = true) {
   app.get("/api/private/:candidateId", async (request) => ({ candidateId: request.candidateId }));
   await app.register(studyRoutes, {
     createStudySession: async (data) => data,
+    getStudySessionHistory: async (_candidateId, filters) => ({
+      sessions: [],
+      pagination: { page: filters.page, limit: filters.limit, total: 0, totalPages: 0 },
+    }),
+    getStudyStreak: async (candidateId) => ({
+      currentStreak: candidateId === candidateAId ? 2 : 5,
+      longestStreak: candidateId === candidateAId ? 2 : 5,
+      totalStudyDays: candidateId === candidateAId ? 2 : 5,
+      lastStudyDate: "2026-11-12",
+      asOfDate: "2026-11-12",
+    }),
     getStudyCandidate: async (id) => ({ id, isActive: true }),
     getTopicCoverage: async () => ({}),
   });

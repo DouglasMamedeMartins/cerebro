@@ -9,17 +9,10 @@ export const navigationItems: { label: DashboardSection; icon: 'overview' | 'pla
 ]
 
 export const metrics = [
-  { label: 'Questões respondidas', value: '1.284', note: 'no total', icon: 'questions' as const, tone: 'blue' },
-  { label: 'Aproveitamento', value: '78%', note: 'média demonstrativa', icon: 'target' as const, tone: 'cyan' },
-  { label: 'Sequência de estudos', value: '12 dias', note: 'ritmo consistente', icon: 'calendar' as const, tone: 'violet' },
-  { label: 'Tempo de estudo', value: '36h 20min', note: 'tempo acumulado', icon: 'clock' as const, tone: 'teal' },
-]
-
-export const subjectProgress = [
-  { name: 'Direito Constitucional', progress: 82, color: 'blue' },
-  { name: 'Direito Penal', progress: 68, color: 'cyan' },
-  { name: 'Legislação PMDF', progress: 54, color: 'violet' },
-  { name: 'Direito Administrativo', progress: 41, color: 'teal' },
+  { key: 'answered' as const, label: 'Questões respondidas', value: null, note: 'no total', icon: 'questions' as const, tone: 'blue' },
+  { key: 'accuracy' as const, label: 'Aproveitamento', value: null, note: 'percentual geral', icon: 'target' as const, tone: 'cyan' },
+  { key: 'streak' as const, label: 'Sequência de estudos', value: null, note: 'sequência atual', icon: 'calendar' as const, tone: 'violet' },
+  { key: 'studyTime' as const, label: 'Tempo de estudo', value: null, note: 'tempo acumulado', icon: 'clock' as const, tone: 'teal' },
 ]
 
 export const studyActivities = [
@@ -127,10 +120,4 @@ export const performanceBySubject = [
   { subject: 'Direito Administrativo', score: 73, answered: 214 },
   { subject: 'Legislação aplicada à PMDF', score: 69, answered: 188 },
   { subject: 'Direito Processual Penal', score: 64, answered: 276 },
-]
-
-export const priorityReviews = [
-  { title: 'Controle de constitucionalidade', subject: 'Direito Constitucional', urgency: 'Alta prioridade', tone: 'high' },
-  { title: 'Concurso de pessoas', subject: 'Direito Penal', urgency: 'Revisar em breve', tone: 'medium' },
-  { title: 'Atos administrativos', subject: 'Direito Administrativo', urgency: 'Atenção', tone: 'low' },
 ]

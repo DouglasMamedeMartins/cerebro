@@ -19,6 +19,7 @@ import {
 import { createEdital } from "./services/edital.service.js";
 import { createSubject } from "./services/subject.service.js";
 import { getTopicCoverage } from "./services/coverage.service.js";
+import { getCandidateStudyStreak } from "./services/study-streak.service.js";
 import { createTopicReview } from "./services/review.service.js";
 import { getTopicPerformance } from "./services/performance.service.js";
 import { getTopicState } from "./services/topic-state.service.js";
@@ -35,6 +36,7 @@ import {
 } from "./services/best-action-candidate.service.js";
 import {
   createStudySession,
+  getStudySessionHistory,
   getStudyCandidate,
 } from "./services/study-session.service.js";
 import { candidateRoutes } from "./routes/candidate.routes.js";
@@ -116,6 +118,8 @@ await app.register(reviewRoutes);
 await app.register(reviewCreationRoutes, { createTopicReview });
 await app.register(studyRoutes, {
   createStudySession,
+  getStudySessionHistory,
+  getStudyStreak: getCandidateStudyStreak,
   getStudyCandidate,
   getTopicCoverage,
 });
