@@ -13,6 +13,10 @@ import type {
   DailyStudyPlanStore,
   DailyStudyPlanWithItems,
 } from "./daily-study-plan.service.js";
+import {
+  parseVersionedManualPlanChange,
+  projectDailyPlanPersonalization,
+} from "./daily-plan-manual-change.js";
 
 async function enrichPlanItems(
   candidateId: string,
@@ -22,6 +26,7 @@ async function enrichPlanItems(
   if (items.length === 0) return items;
 
   const itemIds = items.map((item) => item.id);
+  const itemIdSet = new Set(itemIds);
   const [sessionAggregates, events] = await Promise.all([
     db
       .select({
@@ -48,7 +53,6 @@ async function enrichPlanItems(
       .where(and(
         eq(dailyPlanItemEvents.candidateId, candidateId),
         eq(dailyPlanItemEvents.planId, planId),
-        inArray(dailyPlanItemEvents.planItemId, itemIds),
       ))
       .orderBy(asc(dailyPlanItemEvents.occurredAt), asc(dailyPlanItemEvents.id)),
   ]);
@@ -56,12 +60,25 @@ async function enrichPlanItems(
   const aggregateByItem = new Map(sessionAggregates.map((row) => [row.planItemId!, row]));
   const eventsByItem = new Map<string, typeof events>();
   for (const event of events) {
-    const list = eventsByItem.get(event.planItemId) ?? [];
-    list.push(event);
-    eventsByItem.set(event.planItemId, list);
+    const change = event.eventType === "manual_change"
+      ? parseVersionedManualPlanChange(event.data)
+      : undefined;
+    const affectedItemIds = change?.operation === "reorder"
+      ? change.changes.map((entry) => entry.itemId)
+      : change?.operation === "activity_added"
+        ? [change.itemId, ...(change.shiftedItems ?? []).map((entry) => entry.itemId)]
+      : change ? [change.itemId] : [event.planItemId];
+    for (const affectedItemId of new Set(affectedItemIds)) {
+      if (!itemIdSet.has(affectedItemId)) continue;
+      const list = eventsByItem.get(affectedItemId) ?? [];
+      list.push(event);
+      eventsByItem.set(affectedItemId, list);
+    }
   }
 
-  return items.map((item) => {
+  const personalizationByItem = projectDailyPlanPersonalization(items, events);
+
+  const enrichedItems = items.map((item) => {
     const aggregate = aggregateByItem.get(item.id);
     const executedMinutes = Number(aggregate?.executedMinutes ?? 0);
     const sessionCount = aggregate?.sessionCount ?? 0;
@@ -71,7 +88,7 @@ async function enrichPlanItems(
         || event.eventType === "ignored"
         || event.eventType === "replaced",
     );
-    const status = terminalEvent?.eventType === "completed"
+    const status: "not_started" | "in_progress" | "completed" | "ignored" | "replaced" = terminalEvent?.eventType === "completed"
       ? "completed"
       : terminalEvent?.eventType === "ignored"
         ? "ignored"
@@ -83,6 +100,7 @@ async function enrichPlanItems(
 
     return {
       ...item,
+      personalization: personalizationByItem.get(item.id)!,
       execution: {
         executedMinutes,
         sessionCount,
@@ -97,6 +115,13 @@ async function enrichPlanItems(
         })),
       },
     };
+  });
+  return enrichedItems.sort((left, right) => {
+    const leftState = left.personalization!;
+    const rightState = right.personalization!;
+    if (leftState.isScheduled !== rightState.isScheduled) return leftState.isScheduled ? -1 : 1;
+    return (leftState.presentationOrder ?? left.presentationOrder)
+      - (rightState.presentationOrder ?? right.presentationOrder);
   });
 }
 

@@ -25,6 +25,10 @@ import type {
   RecordDailyPlanItemDecisionInput,
   RecordDailyPlanItemDecisionResult,
 } from "../src/services/daily-plan-item-event.service.js";
+import type {
+  RecordDailyPlanManualChangeInput,
+  RecordDailyPlanManualChangeResult,
+} from "../src/services/daily-plan-manual-change.service.js";
 
 const candidateA = "11111111-1111-4111-8111-111111111111";
 const candidateB = "22222222-2222-4222-8222-222222222222";
@@ -129,6 +133,11 @@ function createTestApp(options: {
   failItems?: boolean;
   initial?: State;
   recordDecision?: (input: RecordDailyPlanItemDecisionInput) => Promise<RecordDailyPlanItemDecisionResult>;
+  recordManualChange?: (input: RecordDailyPlanManualChangeInput) => Promise<RecordDailyPlanManualChangeResult>;
+  unscheduledItemIds?: string[];
+  getManualActivityTopic?: (candidateId: string, topicId: string) => Promise<{
+    topicId: string; topicName: string; subjectName: string;
+  } | undefined>;
 } = {}) {
   const candidateByHash = new Map([
     [hashToken(tokenA), candidateA],
@@ -137,6 +146,26 @@ function createTestApp(options: {
   const fake = createFakeStore({ failItems: options.failItems, initial: options.initial });
   const calls = { best: [] as string[], ranking: [] as string[], topicActions: [] as string[] };
   const decisionCalls: RecordDailyPlanItemDecisionInput[] = [];
+  const manualChangeCalls: RecordDailyPlanManualChangeInput[] = [];
+  const decorateItems = (items: DailyStudyPlanItemRow[]) => items.map((item) => options.unscheduledItemIds?.includes(item.id)
+    ? {
+      ...item,
+      personalization: {
+        presentationOrder: null,
+        plannedDurationMinutes: item.recommendedDurationMinutes,
+        isScheduled: false,
+        isManual: item.recommendationSource === "manual",
+      },
+      execution: {
+        executedMinutes: 0,
+        sessionCount: 0,
+        recommendedTimePercent: 0,
+        status: "not_started" as const,
+        lastSessionAt: null,
+        events: [],
+      },
+    }
+    : item);
   const generator = createDailyStudyPlanGenerator(fake.store, {
     async getBestAction(candidateId) {
       calls.best.push(candidateId);
@@ -170,9 +199,9 @@ function createTestApp(options: {
       if (!plan) return undefined;
       return {
         plan,
-        items: state.items
+        items: decorateItems(state.items
           .filter((item) => item.candidateId === candidateId && item.planId === plan.id)
-          .sort((left, right) => left.presentationOrder - right.presentationOrder),
+          .sort((left, right) => left.presentationOrder - right.presentationOrder)),
       };
     },
     async listPlans(candidateId, filters) {
@@ -206,9 +235,9 @@ function createTestApp(options: {
       if (!plan) return undefined;
       return {
         plan,
-        items: state.items
+        items: decorateItems(state.items
           .filter((item) => item.candidateId === candidateId && item.planId === plan.id)
-          .sort((left, right) => left.presentationOrder - right.presentationOrder),
+          .sort((left, right) => left.presentationOrder - right.presentationOrder)),
       };
     },
     async recordItemDecision(input) {
@@ -229,8 +258,36 @@ function createTestApp(options: {
         },
       };
     },
+    async recordManualChange(input) {
+      manualChangeCalls.push(input);
+      if (options.recordManualChange) return options.recordManualChange(input);
+      return {
+        replayed: false,
+        event: {
+          id: input.idempotencyKey,
+          candidateId: input.candidateId,
+          planId: input.planId,
+          planItemId: input.planItemId,
+          eventType: "manual_change",
+          occurredAt: fixedNow,
+          data: input.data as Record<string, unknown>,
+          idempotencyKey: input.idempotencyKey,
+          requestFingerprint: "b".repeat(64),
+        },
+      };
+    },
+    async getManualActivityTopic(candidateId, topicId) {
+      if (options.getManualActivityTopic) return options.getManualActivityTopic(candidateId, topicId);
+      if (candidateId !== candidateA) return undefined;
+      const selected = rankedTopics.find((entry) => entry.topicId === topicId);
+      return selected ? {
+        topicId: selected.topicId,
+        topicName: selected.topicName,
+        subjectName: selected.subjectName,
+      } : undefined;
+    },
   });
-  return app.ready().then(() => ({ app, fake, calls, decisionCalls }));
+  return app.ready().then(() => ({ app, fake, calls, decisionCalls, manualChangeCalls }));
 }
 
 function previousLocalDate(date: string) {
@@ -626,4 +683,237 @@ test("mapeia decisões terminais incompatíveis para HTTP 409", async (t) => {
   });
   assert.equal(response.statusCode, 409);
   assert.deepEqual(response.json(), { error: "DAILY_PLAN_ITEM_ALREADY_DECIDED" });
+});
+
+test("reorder route records one multi-item operation and leaves original snapshot order intact", async (t) => {
+  const plan = planRow("79000000-0000-4000-8000-000000000001", candidateA, localStudyDate(new Date()), 1);
+  const items = [itemRow(plan, 1, 1), itemRow(plan, 2, 2), itemRow(plan, 3, 3)];
+  const { app, manualChangeCalls } = await createTestApp({ initial: { plans: [plan], items } });
+  t.after(() => app.close());
+  const orderedIds = [items[2]!.id, items[0]!.id, items[1]!.id];
+  const response = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/reorder`,
+    headers: { cookie: `candidate_session=${tokenA}`, "idempotency-key": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" },
+    payload: { itemIds: orderedIds },
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.deepEqual(response.json().event.data, {
+    version: 1, operation: "reorder",
+    changes: [
+      { itemId: items[2]!.id, previousOrder: 3, newOrder: 1 },
+      { itemId: items[0]!.id, previousOrder: 1, newOrder: 2 },
+      { itemId: items[1]!.id, previousOrder: 2, newOrder: 3 },
+    ],
+  });
+  assert.deepEqual(response.json().plan.items.map((item: { presentationOrder: number }) => item.presentationOrder), [1, 2, 3]);
+  assert.equal(response.json().plan.items[0].recommendedDurationMinutes, 30);
+  assert.equal(manualChangeCalls[0]?.candidateId, candidateA);
+  assert.deepEqual(manualChangeCalls[0]?.operationFingerprintPayload, { operation: "reorder", itemIds: orderedIds });
+});
+
+test("reorder route rejects duplicate and foreign item IDs and scopes plans by candidate", async (t) => {
+  const plan = planRow("79100000-0000-4000-8000-000000000001", candidateA, localStudyDate(new Date()), 1);
+  const otherPlan = planRow("79100000-0000-4000-8000-000000000002", candidateB, localStudyDate(new Date()), 1);
+  const ownItems = [itemRow(plan, 1, 1), itemRow(plan, 2, 2)];
+  const foreignItem = itemRow(otherPlan, 1, 3);
+  const { app, manualChangeCalls } = await createTestApp({ initial: { plans: [plan, otherPlan], items: [...ownItems, foreignItem] } });
+  t.after(() => app.close());
+  const headers = { cookie: `candidate_session=${tokenA}`, "idempotency-key": "f1111111-1111-4111-8111-111111111111" };
+  const duplicate = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/reorder`, headers,
+    payload: { itemIds: [ownItems[0]!.id, ownItems[0]!.id] },
+  });
+  const foreign = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/reorder`, headers,
+    payload: { itemIds: [ownItems[0]!.id, foreignItem.id] },
+  });
+  const wrongCandidate = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/reorder`,
+    headers: { cookie: `candidate_session=${tokenB}`, "idempotency-key": "f2222222-2222-4222-8222-222222222222" },
+    payload: { itemIds: ownItems.map((item) => item.id) },
+  });
+
+  assert.equal(duplicate.statusCode, 400);
+  assert.equal(foreign.statusCode, 409);
+  assert.equal(wrongCandidate.statusCode, 404);
+  assert.equal(manualChangeCalls.length, 0);
+});
+
+test("duration route validates positive integer and records original and custom duration", async (t) => {
+  const plan = planRow("79200000-0000-4000-8000-000000000001", candidateA, localStudyDate(new Date()), 1);
+  const item = itemRow(plan, 1, 1);
+  const { app, manualChangeCalls } = await createTestApp({ initial: { plans: [plan], items: [item] } });
+  t.after(() => app.close());
+  const headers = { cookie: `candidate_session=${tokenA}`, "idempotency-key": "f3333333-3333-4333-8333-333333333333" };
+  const changed = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items/${item.id}/duration`, headers,
+    payload: { plannedDurationMinutes: 45 },
+  });
+  const zero = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items/${item.id}/duration`, headers,
+    payload: { plannedDurationMinutes: 0 },
+  });
+  const fractional = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items/${item.id}/duration`, headers,
+    payload: { plannedDurationMinutes: 1.5 },
+  });
+  const overflow = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items/${item.id}/duration`, headers,
+    payload: { plannedDurationMinutes: 2_147_483_648 },
+  });
+
+  assert.equal(changed.statusCode, 201);
+  assert.deepEqual(changed.json().event.data, {
+    version: 1, operation: "duration_changed", itemId: item.id,
+    previousDurationMinutes: 30, newDurationMinutes: 45,
+  });
+  assert.equal(changed.json().plan.items[0].recommendedDurationMinutes, 30);
+  assert.equal(zero.statusCode, 400);
+  assert.equal(fractional.statusCode, 400);
+  assert.equal(overflow.statusCode, 400);
+  assert.equal(manualChangeCalls.length, 1);
+});
+
+test("manual change routes require authentication and a UUID idempotency key", async (t) => {
+  const plan = planRow("79300000-0000-4000-8000-000000000001", candidateA, localStudyDate(new Date()), 1);
+  const item = itemRow(plan, 1, 1);
+  const { app, manualChangeCalls } = await createTestApp({ initial: { plans: [plan], items: [item] } });
+  t.after(() => app.close());
+  const unauthenticated = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items/${item.id}/duration`,
+    payload: { plannedDurationMinutes: 20 },
+  });
+  const invalidKey = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items/${item.id}/duration`,
+    headers: { cookie: `candidate_session=${tokenA}`, "idempotency-key": "not-a-uuid" },
+    payload: { plannedDurationMinutes: 20 },
+  });
+  assert.equal(unauthenticated.statusCode, 401);
+  assert.equal(invalidKey.statusCode, 400);
+  assert.equal(manualChangeCalls.length, 0);
+});
+
+test("adds a manual activity at a requested position and records a versioned event", async (t) => {
+  const plan = planRow("79400000-0000-4000-8000-000000000001", candidateA, localStudyDate(new Date()), 1);
+  const items = [itemRow(plan, 1, 1), itemRow(plan, 2, 2), itemRow(plan, 3, 3)];
+  const { app, manualChangeCalls } = await createTestApp({ initial: { plans: [plan], items } });
+  t.after(() => app.close());
+  const topicId = topic(7).topicId;
+  const response = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items`,
+    headers: { cookie: `candidate_session=${tokenA}`, "idempotency-key": "f4444444-4444-4444-8444-444444444444" },
+    payload: { topicId, activityType: "questions", plannedDurationMinutes: 25, presentationOrder: 2 },
+  });
+
+  assert.equal(response.statusCode, 201);
+  const data = response.json().event.data;
+  assert.equal(data.operation, "activity_added");
+  assert.equal(data.version, 1);
+  assert.equal(data.newOrder, 2);
+  assert.equal(data.newDurationMinutes, 25);
+  assert.equal(data.topicId, topicId);
+  assert.deepEqual(data.shiftedItems.map((entry: { previousOrder: number; newOrder: number }) => [entry.previousOrder, entry.newOrder]), [[2, 3], [3, 4]]);
+  assert.equal(manualChangeCalls[0]?.candidateId, candidateA);
+  assert.equal(manualChangeCalls[0]?.planItemId, response.json().event.planItemId);
+  assert.deepEqual(manualChangeCalls[0]?.operationFingerprintPayload, {
+    operation: "activity_added", topicId, activityType: "questions", plannedDurationMinutes: 25, presentationOrder: 2,
+  });
+});
+
+test("manual activity route checks candidate catalog, plan ownership and input bounds", async (t) => {
+  const plan = planRow("79500000-0000-4000-8000-000000000001", candidateA, localStudyDate(new Date()), 1);
+  const item = itemRow(plan, 1, 1);
+  const { app, manualChangeCalls } = await createTestApp({ initial: { plans: [plan], items: [item] } });
+  t.after(() => app.close());
+  const headers = { cookie: `candidate_session=${tokenA}`, "idempotency-key": "f5555555-5555-4555-8555-555555555555" };
+  const topicId = topic(7).topicId;
+  const missingTopic = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items`, headers,
+    payload: { topicId: "99999999-9999-4999-8999-999999999999", activityType: "study", plannedDurationMinutes: 20 },
+  });
+  const invalidDuration = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items`, headers,
+    payload: { topicId, activityType: "study", plannedDurationMinutes: 0 },
+  });
+  const invalidType = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items`, headers,
+    payload: { topicId, activityType: "flashcards", plannedDurationMinutes: 20 },
+  });
+  const invalidPosition = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items`, headers,
+    payload: { topicId, activityType: "study", plannedDurationMinutes: 20, presentationOrder: 4 },
+  });
+  const spoofedCandidate = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items`, headers,
+    payload: { candidateId: candidateB, topicId, activityType: "study", plannedDurationMinutes: 20 },
+  });
+  const foreignPlan = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items`,
+    headers: { cookie: `candidate_session=${tokenB}`, "idempotency-key": "f6666666-6666-4666-8666-666666666666" },
+    payload: { topicId, activityType: "study", plannedDurationMinutes: 20 },
+  });
+  const unauthorized = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items`,
+    payload: { topicId, activityType: "study", plannedDurationMinutes: 20 },
+  });
+
+  assert.equal(missingTopic.statusCode, 400);
+  assert.equal(invalidDuration.statusCode, 400);
+  assert.equal(invalidType.statusCode, 400);
+  assert.equal(invalidPosition.statusCode, 400);
+  assert.equal(spoofedCandidate.statusCode, 403);
+  assert.equal(foreignPlan.statusCode, 404);
+  assert.equal(unauthorized.statusCode, 401);
+  assert.equal(manualChangeCalls.length, 0);
+});
+
+test("unschedule records a versioned event for the authenticated candidate", async (t) => {
+  const plan = planRow("79600000-0000-4000-8000-000000000001", candidateA, localStudyDate(new Date()), 1);
+  const item = itemRow(plan, 1, 1);
+  const { app, manualChangeCalls } = await createTestApp({ initial: { plans: [plan], items: [item] } });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: "POST", url: `/api/study-plans/${plan.id}/items/${item.id}/unschedule`,
+    headers: { cookie: `candidate_session=${tokenA}`, "idempotency-key": "f7777777-7777-4777-8777-777777777777" },
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json().event.eventType, "manual_change");
+  assert.deepEqual(response.json().event.data, {
+    version: 1, operation: "unscheduled", itemId: item.id,
+    previousScheduled: true, scheduled: false, previousOrder: 1, newOrder: null,
+  });
+  assert.deepEqual(manualChangeCalls[0], {
+    candidateId: candidateA,
+    planId: plan.id,
+    planItemId: item.id,
+    idempotencyKey: "f7777777-7777-4777-8777-777777777777",
+    data: response.json().event.data,
+    operationFingerprintPayload: { operation: "unscheduled", itemId: item.id },
+  });
+});
+
+test("GET current lists scheduled work while plan details retain unscheduled items", async (t) => {
+  const plan = planRow("79700000-0000-4000-8000-000000000001", candidateA, localStudyDate(new Date()), 1);
+  const removed = itemRow(plan, 1, 1);
+  const active = itemRow(plan, 2, 2);
+  const { app } = await createTestApp({
+    initial: { plans: [plan], items: [removed, active] },
+    unscheduledItemIds: [removed.id],
+  });
+  t.after(() => app.close());
+
+  const current = await app.inject({
+    method: "GET", url: "/api/study-plans/current", headers: { cookie: `candidate_session=${tokenA}` },
+  });
+  const detail = await app.inject({
+    method: "GET", url: `/api/study-plans/${plan.id}`, headers: { cookie: `candidate_session=${tokenA}` },
+  });
+  assert.deepEqual(current.json().items.map((item: { id: string }) => item.id), [active.id]);
+  assert.equal(detail.json().items.length, 2);
+  const historical = detail.json().items.find((item: { id: string }) => item.id === removed.id);
+  assert.equal(historical.personalization.isScheduled, false);
+  assert.equal(historical.presentationOrder, 1);
+  assert.equal(historical.recommendedDurationMinutes, 30);
 });

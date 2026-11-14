@@ -148,8 +148,29 @@ export interface DailyStudyPlanItemSnapshot {
   reason: string[]
   explanation: string
   expectedImpact: string
-  recommendationSource: 'best_action' | 'additional_topic'
+  recommendationSource: 'best_action' | 'additional_topic' | 'manual'
+  personalization?: {
+    presentationOrder: number | null
+    plannedDurationMinutes: number
+    isScheduled: boolean
+    isManual: boolean
+  }
   execution?: DailyPlanItemExecution
+}
+
+export type ManualPlanActivityType = 'study' | 'review' | 'questions' | 'mixed' | 'maintenance'
+export type ManualPlanChangeKind = 'reorder' | 'duration' | 'add' | 'unschedule'
+
+export interface ManualPlanChangeResponse {
+  event: {
+    id: string
+    planId: string
+    planItemId: string
+    eventType: 'manual_change'
+    occurredAt: string
+    data: Record<string, unknown>
+  }
+  plan: DailyStudyPlanSnapshot
 }
 
 export interface DailyStudyPlanSnapshot {
@@ -167,6 +188,20 @@ export interface DailyStudyPlanSnapshot {
 export interface DailyStudyPlanCurrentResponse {
   plan: DailyStudyPlanSnapshot['plan'] | null
   items: DailyStudyPlanItemSnapshot[]
+}
+
+export interface DailyStudyPlanListItem {
+  id: string
+  planDate: string
+  availableMinutes: number
+  version: number
+  generatedAt: string
+  itemCount: number
+}
+
+export interface DailyStudyPlanListResponse {
+  plans: DailyStudyPlanListItem[]
+  pagination: StudySessionHistoryPage['pagination']
 }
 
 export interface CandidatePriorityTopic {
@@ -244,6 +279,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return await response.json() as T
   } catch {
     throw new ApiError('A API retornou uma resposta inválida.', response.status, 'response')
+  }
+}
+
+async function requestManualPlanChange(path: string, idempotencyKey: string, body: unknown): Promise<ManualPlanChangeResponse> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+  try {
+    return parseManualPlanChangeResponse(await request<unknown>(path, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    }))
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -515,7 +565,7 @@ function parseDailyStudyPlan(value: unknown): DailyStudyPlanCurrentResponse {
       typeof entry.priorityScore !== 'number' || !Number.isFinite(entry.priorityScore) ||
       !Array.isArray(entry.reason) || !entry.reason.every((reason) => typeof reason === 'string') ||
       typeof entry.explanation !== 'string' || typeof entry.expectedImpact !== 'string' ||
-      !isOneOf(entry.recommendationSource, ['best_action', 'additional_topic'] as const)
+      !isOneOf(entry.recommendationSource, ['best_action', 'additional_topic', 'manual'] as const)
     ) {
       throw new ApiError('A API retornou um item do plano em formato inválido.', undefined, 'response')
     }
@@ -535,10 +585,85 @@ function parseDailyStudyPlan(value: unknown): DailyStudyPlanCurrentResponse {
         throw new ApiError('A API retornou a execuÃ§Ã£o do item em formato invÃ¡lido.', undefined, 'response')
       }
     }
+    if ('personalization' in entry) {
+      const personalization = entry.personalization as Record<string, unknown> | null
+      if (!personalization || typeof personalization !== 'object' ||
+        !(personalization.presentationOrder === null || Number.isInteger(personalization.presentationOrder)) ||
+        !Number.isInteger(personalization.plannedDurationMinutes) || (personalization.plannedDurationMinutes as number) <= 0 ||
+        typeof personalization.isScheduled !== 'boolean' || typeof personalization.isManual !== 'boolean') {
+        throw new ApiError('A API retornou a personalizaÃ§Ã£o do item em formato invÃ¡lido.', undefined, 'response')
+      }
+    }
     return entry as unknown as DailyStudyPlanItemSnapshot
   })
 
   return { plan: parsedPlan, items: parsedItems }
+}
+
+function parseDailyStudyPlanList(value: unknown): DailyStudyPlanListResponse {
+  if (typeof value !== 'object' || value === null) {
+    throw new ApiError('A API retornou o histórico de planos em formato inválido.', undefined, 'response')
+  }
+  const result = value as Record<string, unknown>
+  const pagination = result.pagination
+  if (!Array.isArray(result.plans) || typeof pagination !== 'object' || pagination === null) {
+    throw new ApiError('A API retornou o histórico de planos em formato inválido.', undefined, 'response')
+  }
+  const page = pagination as Record<string, unknown>
+  if (![page.page, page.limit, page.total, page.totalPages].every((number) => Number.isInteger(number) && (number as number) >= 0)) {
+    throw new ApiError('A API retornou a paginação dos planos em formato inválido.', undefined, 'response')
+  }
+  const plans = result.plans.map((plan): DailyStudyPlanListItem => {
+    if (typeof plan !== 'object' || plan === null) {
+      throw new ApiError('A API retornou uma versão de plano em formato inválido.', undefined, 'response')
+    }
+    const item = plan as Record<string, unknown>
+    if (typeof item.id !== 'string' || typeof item.planDate !== 'string' ||
+      !Number.isInteger(item.availableMinutes) || !Number.isInteger(item.version) ||
+      typeof item.generatedAt !== 'string' || !Number.isInteger(item.itemCount)) {
+      throw new ApiError('A API retornou uma versão de plano em formato inválido.', undefined, 'response')
+    }
+    return {
+      id: item.id,
+      planDate: item.planDate,
+      availableMinutes: item.availableMinutes as number,
+      version: item.version as number,
+      generatedAt: item.generatedAt,
+      itemCount: item.itemCount as number,
+    }
+  })
+  return {
+    plans,
+    pagination: {
+      page: page.page as number,
+      limit: page.limit as number,
+      total: page.total as number,
+      totalPages: page.totalPages as number,
+    },
+  }
+}
+
+function parseManualPlanChangeResponse(value: unknown): ManualPlanChangeResponse {
+  if (typeof value !== 'object' || value === null) {
+    throw new ApiError('A API retornou a alteraÃ§Ã£o do plano em formato invÃ¡lido.', undefined, 'response')
+  }
+  const result = value as Record<string, unknown>
+  const event = result.event
+  if (typeof event !== 'object' || event === null) {
+    throw new ApiError('A API retornou o evento de personalizaÃ§Ã£o em formato invÃ¡lido.', undefined, 'response')
+  }
+  const entry = event as Record<string, unknown>
+  if (typeof entry.id !== 'string' || typeof entry.planId !== 'string' || typeof entry.planItemId !== 'string' ||
+    entry.eventType !== 'manual_change' || typeof entry.occurredAt !== 'string' ||
+    typeof entry.data !== 'object' || entry.data === null || Array.isArray(entry.data)) {
+    throw new ApiError('A API retornou o evento de personalizaÃ§Ã£o em formato invÃ¡lido.', undefined, 'response')
+  }
+  const plan = parseDailyStudyPlan(result.plan)
+  if (!plan.plan) throw new ApiError('A API nÃ£o retornou o plano atualizado.', undefined, 'response')
+  return {
+    event: entry as unknown as ManualPlanChangeResponse['event'],
+    plan: { plan: plan.plan, items: plan.items },
+  }
 }
 
 function parseCandidatePriorityTopics(value: unknown): CandidatePriorityTopic[] {
@@ -664,6 +789,17 @@ export const studyPlanApi = {
     return parseDailyStudyPlan(await request<unknown>('/api/study-plans/current'))
   },
 
+  async list(filters: { from?: string; to?: string; page?: number; limit?: number } = {}): Promise<DailyStudyPlanListResponse> {
+    const query = new URLSearchParams()
+    if (filters.from) query.set('from', filters.from)
+    if (filters.to) query.set('to', filters.to)
+    if (filters.page !== undefined) query.set('page', String(filters.page))
+    if (filters.limit !== undefined) query.set('limit', String(filters.limit))
+    const queryString = query.toString()
+    const suffix = queryString ? `?${queryString}` : ''
+    return parseDailyStudyPlanList(await request<unknown>(`/api/study-plans${suffix}`))
+  },
+
   async generate(availableMinutes: number, idempotencyKey: string): Promise<DailyStudyPlanSnapshot> {
     const result = parseDailyStudyPlan(await request<unknown>('/api/study-plans/generate', {
       method: 'POST',
@@ -682,6 +818,22 @@ export const studyPlanApi = {
       throw new ApiError('A API não retornou os detalhes do plano.', undefined, 'response')
     }
     return { plan: result.plan, items: result.items }
+  },
+
+  async reorder(planId: string, itemIds: string[], idempotencyKey: string): Promise<ManualPlanChangeResponse> {
+    return requestManualPlanChange(`/api/study-plans/${encodeURIComponent(planId)}/reorder`, idempotencyKey, { itemIds })
+  },
+
+  async changeDuration(planId: string, itemId: string, plannedDurationMinutes: number, idempotencyKey: string): Promise<ManualPlanChangeResponse> {
+    return requestManualPlanChange(`/api/study-plans/${encodeURIComponent(planId)}/items/${encodeURIComponent(itemId)}/duration`, idempotencyKey, { plannedDurationMinutes })
+  },
+
+  async addActivity(planId: string, payload: { topicId: string; activityType: ManualPlanActivityType; plannedDurationMinutes: number; presentationOrder?: number }, idempotencyKey: string): Promise<ManualPlanChangeResponse> {
+    return requestManualPlanChange(`/api/study-plans/${encodeURIComponent(planId)}/items`, idempotencyKey, payload)
+  },
+
+  async unschedule(planId: string, itemId: string, idempotencyKey: string): Promise<ManualPlanChangeResponse> {
+    return requestManualPlanChange(`/api/study-plans/${encodeURIComponent(planId)}/items/${encodeURIComponent(itemId)}/unschedule`, idempotencyKey, {})
   },
 
   async recordDecision(planId: string, itemId: string, decision: DailyPlanDecision, idempotencyKey: string, replacementTopicId?: string): Promise<DailyPlanDecisionResponse> {

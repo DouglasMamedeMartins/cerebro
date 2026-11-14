@@ -43,6 +43,10 @@ import {
 import { createDailyStudyPlanGenerator } from "./services/daily-study-plan.service.js";
 import { recordDailyPlanItemDecision } from "./services/daily-plan-item-event.service.js";
 import {
+  getCandidateManualActivityTopic,
+  recordDailyPlanManualChange,
+} from "./services/daily-plan-manual-change.service.js";
+import {
   dailyStudyPlanStore,
   getCurrentDailyStudyPlan,
   listDailyStudyPlans,
@@ -143,6 +147,8 @@ await app.register(studyPlanRoutes, {
   listPlans: listDailyStudyPlans,
   getPlanDetails: getDailyStudyPlanDetails,
   recordItemDecision: recordDailyPlanItemDecision,
+  recordManualChange: recordDailyPlanManualChange,
+  getManualActivityTopic: getCandidateManualActivityTopic,
 });
 await app.register(bestActionRoutes);
 await app.register(candidateTopicRoutes);

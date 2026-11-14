@@ -1,0 +1,2 @@
+ALTER TABLE "daily_study_plan_items" DROP CONSTRAINT "daily_study_plan_items_recommendation_source_valid";--> statement-breakpoint
+ALTER TABLE "daily_study_plan_items" ADD CONSTRAINT "daily_study_plan_items_recommendation_source_valid" CHECK ("daily_study_plan_items"."recommendation_source" IN ('best_action', 'additional_topic', 'manual'));

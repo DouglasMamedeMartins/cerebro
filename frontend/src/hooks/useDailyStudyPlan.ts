@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { ApiError, studyPlanApi, type DailyPlanDecision, type DailyStudyPlanItemSnapshot, type DailyStudyPlanSnapshot } from '../services/api'
 import { PlanGenerationCoordinator } from './dailyStudyPlanGeneration'
 import { DailyPlanDecisionCoordinator } from './dailyPlanDecisionCoordinator'
+import { DailyPlanCustomizationCoordinator, type DailyPlanCustomizationOperation, type DailyPlanCustomizationRequest } from './dailyPlanCustomizationCoordinator'
 
 export interface DailyPlanActivity extends DailyStudyPlanItemSnapshot {
   isBestAction: boolean
@@ -17,6 +18,8 @@ export interface DailyStudyPlanViewModel {
   retryable: boolean
   plan: DailyStudyPlanSnapshot | null
   activities: DailyPlanActivity[]
+  allActivities: DailyPlanActivity[]
+  unscheduledActivities: DailyPlanActivity[]
   recommendationCount: number
   totalMinutes: number
   bestActionExceedsAvailability: boolean
@@ -32,9 +35,14 @@ export interface DailyStudyPlanViewModel {
   closeGeneration: () => void
   retry: () => void
   decisionOperations: ReadonlyMap<string, import('./dailyPlanDecisionCoordinator').PlanDecisionOperation>
+  planMutationBlocked: boolean
   decide: (itemId: string, decision: DailyPlanDecision, replacementTopicId?: string) => void
   retryDecision: (itemId: string) => void
   closeDecision: (itemId: string) => void
+  customizationOperation: DailyPlanCustomizationOperation | null
+  customize: (request: DailyPlanCustomizationRequest) => void
+  retryCustomization: () => void
+  closeCustomization: () => void
   refresh: () => void
 }
 
@@ -53,6 +61,11 @@ function makeActivities(items: DailyStudyPlanItemSnapshot[]): DailyPlanActivity[
   }))
 }
 
+function byPersonalizedOrder(left: DailyPlanActivity, right: DailyPlanActivity): number {
+  return (left.personalization?.presentationOrder ?? left.presentationOrder)
+    - (right.personalization?.presentationOrder ?? right.presentationOrder)
+}
+
 export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPlanViewModel {
   const [status, setStatus] = useState<PlanStatus>('idle')
   const [retryable, setRetryable] = useState(false)
@@ -67,6 +80,7 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
   const [loadedCandidateId, setLoadedCandidateId] = useState<string | undefined>(undefined)
   const generationCoordinators = useRef(new Map<string, PlanGenerationCoordinator>())
   const decisionCoordinators = useRef(new Map<string, DailyPlanDecisionCoordinator>())
+  const customizationCoordinators = useRef(new Map<string, DailyPlanCustomizationCoordinator>())
   const currentCandidateId = useRef(candidateId)
   currentCandidateId.current = candidateId
 
@@ -86,6 +100,16 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
   }, [])
   const activeDecisionCoordinator = candidateId ? decisionCoordinatorFor(candidateId) : null
   const decisionOperations = useSyncExternalStore(activeDecisionCoordinator?.subscribe ?? noopSubscribe, activeDecisionCoordinator?.snapshot ?? (() => emptyDecisionOperations), () => emptyDecisionOperations)
+  const customizationCoordinator = candidateId ? (() => {
+    let coordinator = customizationCoordinators.current.get(candidateId)
+    if (!coordinator) { coordinator = new DailyPlanCustomizationCoordinator(); customizationCoordinators.current.set(candidateId, coordinator) }
+    return coordinator
+  })() : null
+  const customizationOperation = useSyncExternalStore(
+    customizationCoordinator?.subscribe ?? noopSubscribe,
+    customizationCoordinator?.snapshot ?? (() => null),
+    () => null,
+  )
 
   const restoreGenerationState = useCallback((coordinator: PlanGenerationCoordinator) => {
     setGenerationPending(coordinator.pending !== null)
@@ -128,7 +152,9 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
       setLoadedCandidateId(candidateId)
       restoreGenerationState(coordinatorFor(candidateId))
       if (result.plan) {
-        setPlan({ plan: result.plan, items: result.items })
+        const details = await studyPlanApi.getDetails(result.plan.id)
+        if ((activeCheck && !activeCheck()) || currentCandidateId.current !== candidateId) return
+        setPlan(details)
         setAvailableMinutesState(result.plan.availableMinutes)
         setStatus('ready')
       } else {
@@ -163,6 +189,8 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
 
   const generate = useCallback(() => {
     if (!candidateId || loadedCandidateId !== candidateId || status === 'loading' || status === 'load-error') return
+    if (customizationCoordinator?.snapshot()?.status !== undefined && customizationCoordinator.snapshot()?.status !== 'success') return
+    if ([...decisionOperations.values()].some((operation) => operation.status !== 'success')) return
 
     const coordinator = coordinatorFor(candidateId)
     const operation = coordinator.beginOrRetry(availableMinutes, () => crypto.randomUUID())
@@ -213,7 +241,7 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
         setGenerationErrorMessage(code ? `A API rejeitou a geração (${code}).` : statusCode ? `A API rejeitou a geração (HTTP ${statusCode}).` : 'A geração foi rejeitada. Encerre a operação antes de iniciar outra.')
       }
     })()
-  }, [availableMinutes, candidateId, coordinatorFor, loadedCandidateId, status])
+  }, [availableMinutes, candidateId, coordinatorFor, customizationCoordinator, decisionOperations, loadedCandidateId, status])
 
   const closeGeneration = useCallback(() => {
     if (!candidateId || !coordinatorFor(candidateId).close()) return
@@ -233,6 +261,7 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
 
   const decide = useCallback((itemId: string, decision: DailyPlanDecision, replacementTopicId?: string) => {
     if (!candidateId || !plan?.plan) return
+    if (generationCoordinators.current.get(candidateId)?.pending || customizationCoordinator?.snapshot()?.status && customizationCoordinator.snapshot()?.status !== 'success') return
     const item = plan.items.find((entry) => entry.id === itemId)
     if (!item || ['completed', 'ignored', 'replaced'].includes(item.execution?.status ?? '')) return
     const coordinator = decisionCoordinatorFor(candidateId)
@@ -245,7 +274,7 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
         throw error
       }
     })
-  }, [candidateId, decisionCoordinatorFor, executeDecision, plan])
+  }, [candidateId, customizationCoordinator, decisionCoordinatorFor, executeDecision, plan])
   const retryDecision = useCallback((itemId: string) => {
     if (!candidateId || !plan?.plan) return
     void decisionCoordinatorFor(candidateId).retry(itemId, async (chosen, key, replacement) => {
@@ -260,22 +289,71 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
   }, [candidateId, decisionCoordinatorFor, executeDecision, plan])
   const closeDecision = useCallback((itemId: string) => { if (candidateId) decisionCoordinatorFor(candidateId).close(itemId) }, [candidateId, decisionCoordinatorFor])
 
+  const executeCustomization = useCallback(async (request: DailyPlanCustomizationRequest, key: string) => {
+    if (!candidateId || !plan?.plan) throw new Error('Plano indisponÃ­vel.')
+    const planId = plan.plan.id
+    try {
+      const result = request.operation === 'reorder'
+        ? await studyPlanApi.reorder(planId, [...request.itemIds], key)
+        : request.operation === 'duration'
+          ? await studyPlanApi.changeDuration(planId, request.itemId, request.plannedDurationMinutes, key)
+          : request.operation === 'add'
+            ? await studyPlanApi.addActivity(planId, {
+              topicId: request.topicId,
+              activityType: request.activityType,
+              plannedDurationMinutes: request.plannedDurationMinutes,
+              ...(request.presentationOrder === undefined ? {} : { presentationOrder: request.presentationOrder }),
+            }, key)
+            : await studyPlanApi.unschedule(planId, request.itemId, key)
+      if (currentCandidateId.current === candidateId) {
+        setPlan(result.plan)
+        setStatus('ready')
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        try {
+          const fresh = await studyPlanApi.getDetails(planId)
+          if (currentCandidateId.current === candidateId) setPlan(fresh)
+        } catch { /* o conflito continua visÃ­vel para atualizaÃ§Ã£o explÃ­cita */ }
+      }
+      throw error
+    }
+  }, [candidateId, plan])
+
+  const customize = useCallback((request: DailyPlanCustomizationRequest) => {
+    if (!candidateId || !plan?.plan || !customizationCoordinator) return
+    if (generationCoordinators.current.get(candidateId)?.pending || [...decisionOperations.values()].some((operation) => operation.status !== 'success')) return
+    void customizationCoordinator.start(request, () => crypto.randomUUID(), executeCustomization)
+  }, [candidateId, customizationCoordinator, decisionOperations, executeCustomization, plan])
+
+  const retryCustomization = useCallback(() => {
+    if (customizationCoordinator) void customizationCoordinator.retry(executeCustomization)
+  }, [customizationCoordinator, executeCustomization])
+
+  const closeCustomization = useCallback(() => { customizationCoordinator?.close() }, [customizationCoordinator])
+
   const candidateIsLoaded = candidateId !== undefined && loadedCandidateId === candidateId
   const visiblePlan = candidateIsLoaded ? plan : null
   const visibleStatus: PlanStatus = candidateId === undefined ? 'idle' : candidateIsLoaded ? status : 'loading'
   const visibleAvailableMinutes = candidateIsLoaded ? availableMinutes : 120
   const visibleGenerationStatus = candidateIsLoaded ? generationStatus : 'idle'
   const visibleGenerationPending = candidateIsLoaded && generationPending
-  const activities = visiblePlan ? makeActivities(visiblePlan.items) : []
-  const totalMinutes = activities.reduce((sum, activity) => sum + activity.recommendedDurationMinutes, 0)
+  const allActivities = visiblePlan ? makeActivities(visiblePlan.items) : []
+  const activities = allActivities.filter((activity) => activity.personalization?.isScheduled !== false).sort(byPersonalizedOrder)
+  const unscheduledActivities = allActivities.filter((activity) => activity.personalization?.isScheduled === false).sort(byPersonalizedOrder)
+  const totalMinutes = activities.reduce((sum, activity) => sum + (activity.personalization?.plannedDurationMinutes ?? activity.recommendedDurationMinutes), 0)
   const bestAction = activities.find((activity) => activity.isBestAction)
   const availabilityChanged = visiblePlan !== null && visibleAvailableMinutes !== visiblePlan.plan.availableMinutes
+  const planMutationBlocked = (customizationOperation !== null && customizationOperation.status !== 'success')
+    || [...decisionOperations.values()].some((operation) => operation.status !== 'success')
 
   return {
     status: visibleStatus,
     retryable: candidateIsLoaded && retryable,
     plan: visiblePlan,
     activities,
+    allActivities,
+    unscheduledActivities,
     recommendationCount: activities.length,
     totalMinutes,
     bestActionExceedsAvailability: bestAction !== undefined && bestAction.recommendedDurationMinutes > visibleAvailableMinutes,
@@ -291,9 +369,19 @@ export function useDailyStudyPlan(candidateId: string | undefined): DailyStudyPl
     closeGeneration,
     retry: () => setReloadKey((key) => key + 1),
     decisionOperations,
+    planMutationBlocked,
     decide,
     retryDecision,
     closeDecision,
-    refresh: () => { if (candidateId) void studyPlanApi.getCurrent().then((fresh) => { if (currentCandidateId.current === candidateId && fresh.plan) { setPlan({ plan: fresh.plan, items: fresh.items }); setStatus('ready') } }).catch(() => {}) },
+    customizationOperation: candidateIsLoaded ? customizationOperation : null,
+    customize,
+    retryCustomization,
+    closeCustomization,
+    refresh: () => {
+      if (!candidateId) return
+      const planId = plan?.plan.id
+      if (planId) void studyPlanApi.getDetails(planId).then((fresh) => { if (currentCandidateId.current === candidateId) { setPlan(fresh); setStatus('ready') } }).catch(() => {})
+      else void loadCurrent()
+    },
   }
 }

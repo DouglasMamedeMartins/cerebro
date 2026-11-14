@@ -295,7 +295,7 @@ export const dailyStudyPlanItems = pgTable("daily_study_plan_items", {
   check("daily_study_plan_items_priority_level_valid", sql`${table.priorityLevel} IN ('maximum', 'high', 'medium', 'low')`),
   check("daily_study_plan_items_priority_score_range", sql`${table.priorityScore} >= 0 AND ${table.priorityScore} <= 100`),
   check("daily_study_plan_items_activity_type_valid", sql`${table.activityType} IN ('study', 'review', 'questions', 'mixed', 'maintenance')`),
-  check("daily_study_plan_items_recommendation_source_valid", sql`${table.recommendationSource} IN ('best_action', 'additional_topic')`),
+  check("daily_study_plan_items_recommendation_source_valid", sql`${table.recommendationSource} IN ('best_action', 'additional_topic', 'manual')`),
 ]);
 
 export const dailyPlanItemEvents = pgTable("daily_plan_item_events", {

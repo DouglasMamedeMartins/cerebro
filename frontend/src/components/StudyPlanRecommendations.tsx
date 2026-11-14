@@ -1,7 +1,8 @@
-import { AlertCircle, Ban, Check, Clock3, LoaderCircle, Minus, Plus, Replace } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, Ban, CalendarMinus, Check, Clock3, LoaderCircle, Minus, Pencil, Plus, Replace } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { DailyPlanActivity, DailyStudyPlanViewModel } from '../hooks/useDailyStudyPlan'
 import type { SessionRegistrationOperation } from '../hooks/studySessionRegistrationCoordinator'
+import type { DailyPlanCustomizationRequest } from '../hooks/dailyPlanCustomizationCoordinator'
 import { candidateApi, type CandidateTopicSummary, type DailyPlanDecision } from '../services/api'
 
 const actionLabels: Record<DailyPlanActivity['activityType'], string> = {
@@ -75,8 +76,8 @@ export function StudyPlanAvailability({ value, onChange }: StudyPlanAvailability
 export function StudyPlanGenerationControls({ plan }: { plan: DailyStudyPlanViewModel }) {
   if (plan.status === 'idle' || plan.status === 'loading' || plan.status === 'load-error') return null
 
-  const canStartNew = !plan.generationPending && (plan.plan === null || plan.availabilityChanged)
-  const canRetrySame = plan.generationPending && plan.generationStatus === 'error' && plan.generationRetryable
+  const canStartNew = !plan.generationPending && !plan.planMutationBlocked && (plan.plan === null || plan.availabilityChanged)
+  const canRetrySame = plan.generationPending && !plan.planMutationBlocked && plan.generationStatus === 'error' && plan.generationRetryable
   const mustCloseOperation = plan.generationPending && (plan.generationStatus === 'conflict' || plan.generationStatus === 'failed')
 
   return (
@@ -98,6 +99,9 @@ interface StudyPlanRecommendationsProps {
   compact?: boolean
   candidateId: string
   decisions: Pick<DailyStudyPlanViewModel, 'decisionOperations' | 'decide' | 'retryDecision' | 'closeDecision'>
+  customization?: Pick<DailyStudyPlanViewModel, 'customizationOperation' | 'customize'>
+  editable?: boolean
+  externalMutationBlocked?: boolean
   registration: {
     operations: ReadonlyMap<string, SessionRegistrationOperation>
     start: (itemId: string, topicId: string, durationMinutes: number) => boolean
@@ -108,7 +112,7 @@ interface StudyPlanRecommendationsProps {
 
 const executionLabels = { not_started: 'Não iniciado', in_progress: 'Em andamento', completed: 'Concluído', ignored: 'Ignorado', replaced: 'Substituído' }
 
-function ActivityExecution({ activity, candidateId, decisions }: { activity: DailyPlanActivity; candidateId: string; decisions: StudyPlanRecommendationsProps['decisions'] }) {
+function ActivityExecution({ activity, candidateId, decisions, actionsBlocked = false }: { activity: DailyPlanActivity; candidateId: string; decisions: StudyPlanRecommendationsProps['decisions']; actionsBlocked?: boolean }) {
   const [replaceOpen, setReplaceOpen] = useState(false)
   const [topics, setTopics] = useState<CandidateTopicSummary[]>([])
   const [topicId, setTopicId] = useState('')
@@ -132,8 +136,8 @@ function ActivityExecution({ activity, candidateId, decisions }: { activity: Dai
     <progress className="execution-progress" max={100} value={Math.min(100, execution.recommendedTimePercent)} aria-label={`${execution.recommendedTimePercent}% do tempo recomendado executado`} />
     {execution.lastSessionAt && <small>Última sessão: {new Date(execution.lastSessionAt).toLocaleString('pt-BR')}</small>}
     {execution.events.filter((event) => event.eventType === 'replaced').map((event) => { const data = event.data ?? {}; const name = typeof data.replacementTopicName === 'string' ? data.replacementTopicName : typeof data.topicName === 'string' ? data.topicName : 'atividade alternativa'; return <small key={event.id}>Recomendação substituída por: {name} · {new Date(event.occurredAt).toLocaleString('pt-BR')}</small> })}
-    {!terminal && <div className="execution-actions"><button type="button" onClick={() => confirm('completed')}><Check size={14} /> Concluir</button><button type="button" onClick={() => confirm('ignored')}><Ban size={14} /> Ignorar</button><button type="button" onClick={() => setReplaceOpen((open) => !open)}><Replace size={14} /> Substituir</button></div>}
-    {replaceOpen && !terminal && <div className="execution-replace-form"><label htmlFor={`replacement-${activity.id}`}>Tópico substituto do seu edital</label><select id={`replacement-${activity.id}`} value={topicId} onChange={(event) => setTopicId(event.currentTarget.value)}><option value="">Selecione um tópico</option>{topics.filter((topic) => topic.topicId !== activity.topicId).map((topic) => <option key={topic.topicId} value={topic.topicId}>{topic.subjectName} · {topic.topicName}</option>)}</select>{topicsError && <small role="alert">{topicsError}</small>}<button type="button" disabled={!topicId} onClick={() => confirm('replaced')}>Confirmar substituição</button></div>}
+    {!terminal && <div className="execution-actions"><button type="button" disabled={actionsBlocked || operation?.status === 'sending'} onClick={() => confirm('completed')}><Check size={14} /> Concluir</button><button type="button" disabled={actionsBlocked || operation?.status === 'sending'} onClick={() => confirm('ignored')}><Ban size={14} /> Ignorar</button><button type="button" disabled={actionsBlocked || operation?.status === 'sending'} onClick={() => setReplaceOpen((open) => !open)}><Replace size={14} /> Substituir</button></div>}
+    {replaceOpen && !terminal && <div className="execution-replace-form"><label htmlFor={`replacement-${activity.id}`}>Tópico substituto do seu edital</label><select id={`replacement-${activity.id}`} value={topicId} onChange={(event) => setTopicId(event.currentTarget.value)}><option value="">Selecione um tópico</option>{topics.filter((topic) => topic.topicId !== activity.topicId).map((topic) => <option key={topic.topicId} value={topic.topicId}>{topic.subjectName} · {topic.topicName}</option>)}</select>{topicsError && <small role="alert">{topicsError}</small>}<button type="button" disabled={!topicId || actionsBlocked} onClick={() => confirm('replaced')}>Confirmar substituição</button></div>}
     {operation?.status === 'sending' && <p role="status"><LoaderCircle size={14} className="plan-spinner" />Registrando decisão…</p>}{operation?.status === 'success' && <p className="execution-success" role="status">Decisão registrada e plano atualizado.</p>}
     {operation?.status === 'retryable' && <p className="execution-error" role="alert">Falha temporária. Tentativa preservada. <button type="button" onClick={() => decisions.retryDecision(activity.id)}>Tentar novamente</button></p>}{operation?.status === 'conflict' && <p className="execution-error" role="alert">O estado mudou no servidor (HTTP 409). <button type="button" onClick={() => decisions.closeDecision(activity.id)}>Entendi</button></p>}{operation?.status === 'failed' && <p className="execution-error" role="alert">Não foi possível registrar a decisão. <button type="button" onClick={() => decisions.closeDecision(activity.id)}>Fechar</button></p>}
     {execution.events.length > 0 && <details className="execution-events"><summary>Eventos ({execution.events.length})</summary>{execution.events.map((event) => <small key={event.id}>{event.eventType} · {new Date(event.occurredAt).toLocaleString('pt-BR')}</small>)}</details>}
@@ -182,7 +186,21 @@ function SessionRegistration({ activity, registration }: { activity: DailyPlanAc
   )
 }
 
-export function StudyPlanRecommendations({ activities, compact = false, registration, candidateId, decisions }: StudyPlanRecommendationsProps) {
+export function StudyPlanRecommendations({ activities, compact = false, registration, candidateId, decisions, customization, editable = false, externalMutationBlocked = false }: StudyPlanRecommendationsProps) {
+  const movable = activities.filter((activity) => !['completed', 'ignored', 'replaced'].includes(activity.execution?.status ?? ''))
+  const customizationBlocked = customization?.customizationOperation !== null && customization?.customizationOperation !== undefined && customization.customizationOperation.status !== 'success'
+  const decisionBlocked = [...decisions.decisionOperations.values()].some((operation) => operation.status !== 'success')
+  const mutationBlocked = customizationBlocked || decisionBlocked || externalMutationBlocked
+  const moveItem = (itemId: string, direction: -1 | 1) => {
+    if (!customization) return
+    const current = movable.findIndex((activity) => activity.id === itemId)
+    const target = current + direction
+    if (current < 0 || target < 0 || target >= movable.length) return
+    const next = [...movable]
+    ;[next[current], next[target]] = [next[target]!, next[current]!]
+    const request: DailyPlanCustomizationRequest = { operation: 'reorder', itemIds: next.map((activity) => activity.id) }
+    customization.customize(request)
+  }
   if (compact) {
     return (
       <div className="activity-list">
@@ -197,11 +215,13 @@ export function StudyPlanRecommendations({ activities, compact = false, registra
               {activity.reason.length > 0 && <small>Motivos registrados: {activity.reason.join(', ')}</small>}
               <p className="daily-plan-explanation">{activity.explanation}</p>
               <p className="daily-plan-impact">Impacto esperado: {activity.expectedImpact}</p>
-              <ActivityExecution activity={activity} candidateId={candidateId} decisions={decisions} />
+              <ActivityExecution activity={activity} candidateId={candidateId} decisions={decisions} actionsBlocked={mutationBlocked} />
+              {editable && customization && <ActivityCustomization activity={activity} activities={activities} customization={customization} blocked={mutationBlocked} onMove={moveItem} />}
               <SessionRegistration activity={activity} registration={registration} />
             </div>
             <div className="activity-meta">
-              <span><Clock3 size={13} aria-hidden="true" /> {activity.recommendedDurationMinutes} min</span>
+              <span><Clock3 size={13} aria-hidden="true" /> Planejado {activity.personalization?.plannedDurationMinutes ?? activity.recommendedDurationMinutes} min</span>
+              {activity.recommendationSource === 'manual' && <small className="manual-activity-badge">Adicionada manualmente</small>}
               <small className={activity.isBestAction ? 'state-next' : ''}>{activity.isBestAction ? 'Melhor ação' : `Prioridade ${priorityLabels[activity.priorityLevel]}`}</small>
             </div>
           </article>
@@ -222,10 +242,12 @@ export function StudyPlanRecommendations({ activities, compact = false, registra
             <p className="daily-plan-impact">Impacto esperado: {activity.expectedImpact}</p>
             {activity.rankingPosition !== null && <small>Posição original no ranking: {activity.rankingPosition}</small>}
             {activity.reason.length > 0 && <small>Motivos registrados: {activity.reason.join(', ')}</small>}
-            <ActivityExecution activity={activity} candidateId={candidateId} decisions={decisions} />
+            <ActivityExecution activity={activity} candidateId={candidateId} decisions={decisions} actionsBlocked={mutationBlocked} />
+            {editable && customization && <ActivityCustomization activity={activity} activities={activities} customization={customization} blocked={mutationBlocked} onMove={moveItem} />}
             <SessionRegistration activity={activity} registration={registration} />
           </div>
-          <div className="plan-row-duration"><Clock3 size={14} aria-hidden="true" /> {activity.recommendedDurationMinutes} min</div>
+          <div className="plan-row-duration"><Clock3 size={14} aria-hidden="true" /> Planejado {activity.personalization?.plannedDurationMinutes ?? activity.recommendedDurationMinutes} min <small>(recomendado {activity.recommendedDurationMinutes} min)</small></div>
+          {activity.recommendationSource === 'manual' && <span className="manual-activity-badge">Adicionada manualmente</span>}
           <span className={`plan-status ${activity.isBestAction ? 'plan-status-active' : 'plan-status-pending'}`}>
             {activity.isBestAction ? 'Melhor ação' : `Prioridade ${priorityLabels[activity.priorityLevel]}`}
           </span>
@@ -233,6 +255,57 @@ export function StudyPlanRecommendations({ activities, compact = false, registra
       ))}
     </div>
   )
+}
+
+function ActivityCustomization({
+  activity, activities, customization, blocked, onMove,
+}: {
+  activity: DailyPlanActivity
+  activities: DailyPlanActivity[]
+  customization: NonNullable<StudyPlanRecommendationsProps['customization']>
+  blocked: boolean
+  onMove: (itemId: string, direction: -1 | 1) => void
+}) {
+  const [editingDuration, setEditingDuration] = useState(false)
+  const [duration, setDuration] = useState(String(activity.personalization?.plannedDurationMinutes ?? activity.recommendedDurationMinutes))
+  const [durationError, setDurationError] = useState('')
+  const scheduled = activity.personalization?.isScheduled !== false
+  const terminal = ['completed', 'ignored', 'replaced'].includes(activity.execution?.status ?? '')
+  const movable = activities.filter((item) => !['completed', 'ignored', 'replaced'].includes(item.execution?.status ?? ''))
+  const position = movable.findIndex((item) => item.id === activity.id)
+  const plannedMinutes = activity.personalization?.plannedDurationMinutes ?? activity.recommendedDurationMinutes
+
+  function saveDuration() {
+    const value = Number(duration)
+    if (!Number.isInteger(value) || value <= 0 || value > 2_147_483_647) {
+      setDurationError('Informe minutos inteiros entre 1 e 2.147.483.647.')
+      return
+    }
+    setDurationError('')
+    customization.customize({ operation: 'duration', itemId: activity.id, plannedDurationMinutes: value })
+    setEditingDuration(false)
+  }
+
+  if (!scheduled) return null
+  return <div className="plan-customization-controls" aria-label={`Personalizar ${activity.topicName}`}>
+    <div className="plan-reorder-controls">
+      <button type="button" aria-label={`Mover ${activity.topicName} para cima`} title="Mover para cima" disabled={blocked || terminal || position <= 0} onClick={() => onMove(activity.id, -1)}><ArrowUp size={15} aria-hidden="true" /></button>
+      <button type="button" aria-label={`Mover ${activity.topicName} para baixo`} title="Mover para baixo" disabled={blocked || terminal || position < 0 || position >= movable.length - 1} onClick={() => onMove(activity.id, 1)}><ArrowDown size={15} aria-hidden="true" /></button>
+    </div>
+    {!editingDuration ? <button className="text-action" type="button" disabled={blocked || terminal} onClick={() => { setDuration(String(plannedMinutes)); setEditingDuration(true) }}><Pencil size={14} aria-hidden="true" /> Ajustar duração planejada</button> : <div className="plan-duration-editor">
+      <label htmlFor={`planned-duration-${activity.id}`}>Minutos planejados</label>
+      <input id={`planned-duration-${activity.id}`} type="number" min={1} max={2_147_483_647} step={1} inputMode="numeric" value={duration} onChange={(event) => setDuration(event.currentTarget.value)} />
+      <button type="button" disabled={blocked} onClick={saveDuration}>Salvar duração</button>
+      <button className="text-action" type="button" onClick={() => { setEditingDuration(false); setDurationError('') }}>Cancelar</button>
+      {durationError && <small role="alert">{durationError}</small>}
+    </div>}
+    <button className="text-action unschedule-action" type="button" disabled={blocked || terminal} onClick={() => {
+      if (window.confirm(`Retirar “${activity.topicName}” da programação? O histórico e as sessões serão preservados.`)) {
+        customization.customize({ operation: 'unschedule', itemId: activity.id })
+      }
+    }}><CalendarMinus size={14} aria-hidden="true" /> Retirar da programação</button>
+    {terminal && <small>Atividade com decisão terminal; personalização bloqueada.</small>}
+  </div>
 }
 
 export function formatPlanDuration(minutes: number): string {

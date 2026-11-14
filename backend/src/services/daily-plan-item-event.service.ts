@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import {
@@ -94,6 +94,20 @@ export async function recordDailyPlanItemDecision(
       .limit(1);
     if (terminal) throw new Error("DAILY_PLAN_ITEM_ALREADY_DECIDED");
 
+    const [latestItemEvent] = await tx
+      .select({ occurredAt: dailyPlanItemEvents.occurredAt })
+      .from(dailyPlanItemEvents)
+      .where(and(
+        eq(dailyPlanItemEvents.planItemId, input.planItemId),
+        eq(dailyPlanItemEvents.candidateId, input.candidateId),
+      ))
+      .orderBy(desc(dailyPlanItemEvents.occurredAt), desc(dailyPlanItemEvents.id))
+      .limit(1);
+    const occurredAt = new Date(Math.max(
+      Date.now(),
+      (latestItemEvent?.occurredAt.getTime() ?? 0) + 1,
+    ));
+
     let data: Record<string, unknown> | null = null;
     if (input.eventType === "replaced") {
       if (!input.replacementTopicId) throw new Error("REPLACEMENT_TOPIC_REQUIRED");
@@ -132,6 +146,7 @@ export async function recordDailyPlanItemDecision(
         planId: input.planId,
         planItemId: input.planItemId,
         eventType: input.eventType,
+        occurredAt,
         data,
         idempotencyKey: input.idempotencyKey,
         requestFingerprint,

@@ -25,11 +25,11 @@ export function StudyPlan({ plan, candidateId, registration, onViewPlan }: Study
       <StudyPlanGenerationControls plan={plan} />
 
       {plan.status === 'ready' && <>
-        <StudyPlanRecommendations activities={plan.activities} compact registration={registration} candidateId={candidateId} decisions={plan} />
+        <StudyPlanRecommendations activities={plan.activities} compact registration={registration} candidateId={candidateId} decisions={plan} externalMutationBlocked={plan.generationPending} />
         {plan.bestActionExceedsAvailability && <p className="plan-limit-message">A melhor ação ({plan.activities.find((activity) => activity.isBestAction)?.recommendedDurationMinutes} min) excede a disponibilidade selecionada. O snapshot permanece inalterado.</p>}
         {plan.activities.length === 1 && <p className="plan-limit-message">{plan.recommendationCount === 1 ? 'O snapshot contém somente uma atividade.' : 'O snapshot não contém atividades adicionais.'}</p>}
         <div className="schedule-footer flex items-center justify-between">
-          <span>Duração total sugerida <strong>{formatPlanDuration(plan.totalMinutes)}</strong></span>
+          <span>Duração planejada <strong>{formatPlanDuration(plan.totalMinutes)}</strong></span>
           <button className="text-action" onClick={onViewPlan}>Ver plano completo <ArrowRight size={15} aria-hidden="true" /></button>
         </div>
         <p className="daily-plan-snapshot-meta">Versão {plan.plan?.plan.version} · gerado em {plan.plan ? new Date(plan.plan.plan.generatedAt).toLocaleString('pt-BR') : ''}</p>

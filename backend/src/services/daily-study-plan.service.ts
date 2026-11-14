@@ -4,6 +4,7 @@ import type {
 } from "./best-action-candidate.service.js";
 import type { ActionType } from "../domain/action/best-action.schema.js";
 import type { dailyStudyPlanItems, dailyStudyPlans } from "../db/schema.js";
+import type { DailyPlanPersonalization } from "./daily-plan-manual-change.js";
 
 export type DailyStudyPlanSnapshotItemInput = {
   planId: string;
@@ -20,7 +21,7 @@ export type DailyStudyPlanSnapshotItemInput = {
   reason: string[];
   explanation: string;
   expectedImpact: string;
-  recommendationSource: "best_action" | "additional_topic";
+  recommendationSource: "best_action" | "additional_topic" | "manual";
 };
 
 export type DailyStudyPlanInsert = {
@@ -54,6 +55,7 @@ export type DailyPlanItemExecution = {
 
 export type DailyStudyPlanItemWithExecution = DailyStudyPlanItemRow & {
   execution?: DailyPlanItemExecution;
+  personalization?: DailyPlanPersonalization;
 };
 
 export type DailyStudyPlanTransaction = {
